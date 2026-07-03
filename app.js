@@ -8,6 +8,13 @@ const STATE_IDLE = 'idle';           // Вращение протопланет�
 const STATE_COLLAPSE = 'collapse';   // Сжатие облака к центру
 const STATE_EXPLOSION = 'explosion'; // Взрыв сверхновой
 const STATE_SPACE = 'space';         // Звездная система в дрейфе
+// Предварительная загрузка аватаров для исключения лагов при открытии карточек
+const preloadedAvatars = {};
+['avatar.jpg', 'ichi.png', 'mystery.png'].forEach(src => {
+    const img = new Image();
+    img.src = src;
+    preloadedAvatars[src] = img;
+});
 
 let currentState = STATE_IDLE;
 
@@ -1059,6 +1066,12 @@ window.addEventListener('click', (e) => {
     
     if (clickedPlanet) {
         cardOpeningTime = Date.now(); // Фиксируем время открытия
+        
+        // Скрываем старый аватар и настраиваем плавный показ нового после загрузки
+        cardAvatar.style.opacity = '0';
+        cardAvatar.onload = () => {
+            cardAvatar.style.opacity = '1';
+        };
         
         // Восстанавливаем отображение скрытых элементов карточки
         cardSubtitle.style.display = 'block';
