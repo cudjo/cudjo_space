@@ -28,7 +28,9 @@ let width = window.innerWidth;
 let height = window.innerHeight;
 let centerX = width / 2;
 let centerY = height / 2;
-let maxRadius = Math.min(width, height) * 0.45;
+let maxRadius = (width < height) ? (width * 0.48) : (Math.min(width, height) * 0.45); // Более крупный радиус на вертикальных экранах
+let screenScale = Math.min(1.0, Math.max(0.70, width / 1300)); // Глобальный масштаб для плавной адаптивности под экраны
+let systemTilt = width < height ? 0.82 : 0.65; // Угол наклона системы: раскрываем орбиты по вертикали на смартфонах
 
 // Настройка Retina-дисплеев
 function resizeCanvas() {
@@ -36,7 +38,9 @@ function resizeCanvas() {
     height = window.innerHeight;
     centerX = width / 2;
     centerY = height / 2;
-    maxRadius = Math.min(width, height) * 0.45;
+    maxRadius = (width < height) ? (width * 0.48) : (Math.min(width, height) * 0.45);
+    screenScale = Math.min(1.0, Math.max(0.70, width / 1300));
+    systemTilt = width < height ? 0.82 : 0.65;
 
     const dpr = window.devicePixelRatio || 1;
     canvas.width = width * dpr;
@@ -111,7 +115,7 @@ class Particle {
             this.size = Math.random() * 2.2 + 0.4;
             
             // Имитация 3D: наклон диска и вертикальная толщина (z-сдвиг)
-            this.tilt = 0.65; // сжатие по оси Y для создания иллюзии наклона диска в 3D
+            this.tilt = systemTilt; // динамический наклон диска в зависимости от пропорций экрана
             // Толщина облака больше в центре и угасает к краям
             this.zOffset = (Math.random() - 0.5) * 45 * (1 - this.r / maxRadius);
             
@@ -324,17 +328,17 @@ class Planet {
         // Задержка взрыва для хаотичного выброса
         this.explosionDelay = Math.random() * 25;
         
-        // Более широкое распределение орбит на мобильных устройствах для избежания скученности
-        const minOrbit = width < 600 ? 0.22 : 0.15;
-        const orbitRange = width < 600 ? 0.48 : 0.42;
+        // Более широкое распределение орбит на меньших экранах для избежания скученности планет
+        const minOrbit = 0.15 + (1 - screenScale) * 0.1;
+        const orbitRange = 0.42 + (1 - screenScale) * 0.1;
         this.orbitRadius = maxRadius * (minOrbit + Math.random() * orbitRange);
         
         // Скорость орбиты по закону Кеплера (быстрее у центра) снижена на 20%
         this.orbitSpeed = (0.0012 + 0.0028 * (1 - this.orbitRadius / maxRadius)) * 0.8;
         
-        // Размеры планет адаптированы под мобильные экраны (в 2 раза меньше)
-        const sizeMultiplier = width < 600 ? 0.5 : 1.0;
-        this.size = (Math.random() * 18 + 4) * sizeMultiplier;
+        // Базовый размер планеты (текущий size рассчитывается динамически в update)
+        this.baseSize = Math.random() * 18 + 4;
+        this.size = this.baseSize * screenScale;
         this.currentSize = 0.1; // Растут от нуля при взрыве
         
         // Случайные цвета для создания 3D текстуры с помощью градиентов
@@ -344,7 +348,7 @@ class Planet {
         this.shadowAngle = Math.random() * Math.PI * 2;
         
         // Наличие колец (25% вероятность для планет среднего и крупного размера)
-        this.hasRings = this.size > (width < 600 ? 6 : 10) && Math.random() < 0.25;
+        this.hasRings = this.size > 10 * screenScale && Math.random() < 0.25;
         if (this.hasRings) {
             this.ringColor = this.color2;
             this.ringWidth = this.size * (Math.random() * 0.8 + 1.4);
@@ -354,14 +358,14 @@ class Planet {
         
         // Наличие спутников (мелкие точки, вращающиеся вокруг)
         this.moons = [];
-        if (this.size > (width < 600 ? 8 : 15) && Math.random() < 0.4) {
+        if (this.size > 15 * screenScale && Math.random() < 0.4) {
             const moonCount = Math.floor(Math.random() * 2) + 1;
             for (let i = 0; i < moonCount; i++) {
                 this.moons.push({
                     orbitRadius: this.size * (1.5 + Math.random() * 0.6),
                     angle: Math.random() * Math.PI * 2,
                     speed: (0.01 + Math.random() * 0.02) * (Math.random() > 0.5 ? 1 : -1),
-                    size: (Math.random() * 2 + 1) * (width < 600 ? 0.6 : 1.0),
+                    baseSize: Math.random() * 2 + 1,
                     color: '#dddddd'
                 });
             }
@@ -374,6 +378,13 @@ class Planet {
     }
 
     update() {
+        // Динамический пересчет размера планет и колец при ресайзе
+        this.size = this.baseSize * screenScale;
+        if (this.hasRings) {
+            this.ringWidth = this.size * 1.8;
+            this.ringHeight = this.size * 0.25;
+        }
+
         if (currentState === STATE_EXPLOSION) {
             // Во время взрыва: ждем своей очереди в центре
             if (this.explosionDelay > 0) {
@@ -393,7 +404,7 @@ class Planet {
                 this.r += (this.orbitRadius - this.r) * 0.03;
                 
                 this.x = centerX + Math.cos(this.angle) * this.r;
-                this.y = centerY + Math.sin(this.angle) * this.r * 0.65;
+                this.y = centerY + Math.sin(this.angle) * this.r * systemTilt;
             }
         } else if (currentState === STATE_SPACE) {
             // В режиме космоса: планета движется по стабильной эллиптической 3D орбите
@@ -402,7 +413,7 @@ class Planet {
             this.r += (this.orbitRadius - this.r) * 0.05;
             
             this.x = centerX + Math.cos(this.angle) * this.r;
-            this.y = centerY + Math.sin(this.angle) * this.r * 0.65;
+            this.y = centerY + Math.sin(this.angle) * this.r * systemTilt;
         }
         
         // Постепенное увеличение размера до целевого
@@ -484,21 +495,20 @@ class Planet {
         if (this.hasQuestionMark && currentState === STATE_SPACE) {
             const bounce = Math.sin(Date.now() * 0.004) * 4;
             const qx = this.x;
-            const isMobile = width < 600;
-            const qy = this.y - radius - (isMobile ? 15 : 23) + bounce; // Чуть выше над планетой
+            const qy = this.y - radius - (23 * screenScale) + bounce; // Чуть выше над планетой
             
-            const w = isMobile ? 20 : 28;
-            const h = isMobile ? 16 : 22;
-            const r = isMobile ? 4 : 6; // Скругление углов
-            const pointerHeight = isMobile ? 4 : 6;
+            const w = 28 * screenScale;
+            const h = 22 * screenScale;
+            const r = 6 * screenScale; // Скругление углов
+            const pointerHeight = 6 * screenScale;
             
             ctx.save();
             // Свечение неоновой выноски
-            ctx.shadowBlur = isMobile ? 8 : 12;
+            ctx.shadowBlur = 12 * screenScale;
             ctx.shadowColor = '#ff7700';
             ctx.fillStyle = 'rgba(15, 15, 23, 0.95)';
             ctx.strokeStyle = '#ff7700';
-            ctx.lineWidth = isMobile ? 1.4 : 1.8;
+            ctx.lineWidth = 1.8 * screenScale;
             
             ctx.beginPath();
             // Рисуем скругленный прямоугольник выноски
@@ -509,9 +519,9 @@ class Planet {
             ctx.quadraticCurveTo(qx + w/2, qy + h/2, qx + w/2 - r, qy + h/2);
             
             // Маленький указатель (стрелочка вниз на планету)
-            ctx.lineTo(qx + (isMobile ? 3 : 5), qy + h/2);
+            ctx.lineTo(qx + (5 * screenScale), qy + h/2);
             ctx.lineTo(qx, qy + h/2 + pointerHeight);
-            ctx.lineTo(qx - (isMobile ? 3 : 5), qy + h/2);
+            ctx.lineTo(qx - (5 * screenScale), qy + h/2);
             
             ctx.lineTo(qx - w/2 + r, qy + h/2);
             ctx.quadraticCurveTo(qx - w/2, qy + h/2, qx - w/2, qy + h/2 - r);
@@ -524,10 +534,11 @@ class Planet {
             
             // Текст "!" по центру выноски
             ctx.fillStyle = '#ffffff';
-            ctx.font = isMobile ? 'bold 10px "Orbitron", sans-serif' : 'bold 14px "Orbitron", sans-serif';
+            const fontSize = Math.round(14 * screenScale);
+            ctx.font = `bold ${fontSize}px "Orbitron", sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('!', qx, qy - (isMobile ? 0.5 : 1)); 
+            ctx.fillText('!', qx, qy - (1 * screenScale)); 
             ctx.restore();
         }
 
@@ -537,7 +548,7 @@ class Planet {
     drawMoon(moon, scale) {
         // Проекция 3D орбиты на 2D экран с учетом перспективы
         const scaledOrbit = moon.orbitRadius * scale;
-        const scaledSize = moon.size * scale;
+        const scaledSize = moon.baseSize * screenScale * scale;
         const mx = this.x + Math.cos(moon.angle) * scaledOrbit;
         const my = this.y + Math.sin(moon.angle) * (scaledOrbit * 0.35); // Сплющенный эллипс орбиты
         
@@ -557,7 +568,8 @@ class Planet {
         ctx.rotate(this.ringTilt);
 
         const scaledWidth = this.ringWidth * scale;
-        const scaledHeight = this.ringHeight * scale;
+        // Высота кольца масштабируется в зависимости от угла наклона системы (systemTilt)
+        const scaledHeight = this.ringHeight * scale * (systemTilt / 0.65);
 
         // Клиппинг для разделения передней и задней части колец
         ctx.beginPath();
@@ -614,18 +626,21 @@ class Asteroid {
         // Движение строго в одном направлении (в ту же сторону, что и вращение облака)
         this.orbitSpeed = 0.0006 + Math.random() * 0.0016; 
         
-        const sizeMultiplier = width < 600 ? 0.6 : 1.0;
-        this.size = (Math.random() * 1.8 + 0.5) * sizeMultiplier; // Мелкие угловатые тела
+        this.baseSize = Math.random() * 1.8 + 0.5;
+        this.size = this.baseSize * screenScale; // Мелкие угловатые тела
         
         // Цвет: оттенки серого, коричневого, темно-золотого (астероиды каменные/металлические)
         const gray = Math.floor(Math.random() * 55 + 75); // 75 - 130
         this.color = `rgba(${gray}, ${gray - Math.floor(Math.random() * 12)}, ${gray - Math.floor(Math.random() * 22)}, ${Math.random() * 0.35 + 0.45})`;
         
-        this.tilt = 0.65; // Наклон пояса астероидов (согласован с облаком)
+        this.tilt = systemTilt; // Наклон пояса астероидов (согласован с облаком/планетами)
         this.zOffset = (Math.random() - 0.5) * 12; // Более тонкий пояс по высоте для упорядоченности
     }
 
     update() {
+        // Динамический пересчет размера астероидов при ресайзе
+        this.size = this.baseSize * screenScale;
+
         if (currentState === STATE_EXPLOSION) {
             // Во время взрыва: ждем своей задержки в центре, затем вылетаем
             if (this.explosionDelay > 0) {
@@ -695,11 +710,12 @@ class Comet {
         // scale от 0.2 (вдали) до 1.8 (вблизи)
         this.scale = 0.2 + Math.pow(Math.random(), 2) * 1.6; // Больше далеких, меньше близких
         
-        this.size = (Math.random() * 2.2 + 0.8); // Базовый размер ядра
+        this.baseSize = Math.random() * 2.2 + 0.8; // Базовый размер ядра
+        this.size = this.baseSize * screenScale;
         this.alpha = Math.random() * 0.3 + 0.7; // Прозрачность ядра
         
         // В зависимости от масштаба задаем скорость (близкие летят быстро, далекие - медленно)
-        const speed = (4 + Math.random() * 7) * this.scale;
+        const speed = (4 + Math.random() * 7) * this.scale * screenScale;
         
         // Направление полета: по диагонали сверху-слева вниз-вправо
         const angle = 0.1 * Math.PI + Math.random() * 0.35 * Math.PI;
@@ -732,6 +748,9 @@ class Comet {
     }
 
     update() {
+        // Динамический пересчет размера комет при ресайзе
+        this.size = this.baseSize * screenScale;
+
         this.x += this.vx;
         this.y += this.vy;
         
@@ -957,13 +976,16 @@ window.addEventListener('click', (e) => {
         const radius = infoPlanet.currentSize * scale;
         const qx = infoPlanet.x;
         const bounce = Math.sin(Date.now() * 0.004) * 4;
-        const qy = infoPlanet.y - radius - (width < 600 ? 15 : 23) + bounce; // Должно соответствовать координатам отрисовки выноски
+        const qy = infoPlanet.y - radius - (23 * screenScale) + bounce; // Должно соответствовать координатам отрисовки выноски
         
         const distToQ = Math.hypot(mouseX - qx, mouseY - qy);
         const distToPlanet = Math.hypot(mouseX - infoPlanet.x, mouseY - infoPlanet.y);
         
-        // Клик срабатывает и по выноске (26px), и по самой планете (radius + 15px) для удобства
-        if (distToQ < 26 || distToPlanet < radius + 15) {
+        // Масштабируем область клика пропорционально экрану, но не делаем её слишком мелкой для пальцев (clamped [0.65, 1.0])
+        const clickScale = Math.min(1.0, Math.max(0.65, width / 1300));
+        
+        // Клик срабатывает и по выноске (26px * clickScale), и по самой планете (radius + 15px * clickScale)
+        if (distToQ < 26 * clickScale || distToPlanet < radius + 15 * clickScale) {
             cardOpeningTime = Date.now(); // Фиксируем время открытия
             dynamicAge.textContent = calculateAge();
             cardOverlay.classList.remove('hidden');
@@ -988,12 +1010,14 @@ window.addEventListener('mousemove', (e) => {
         const radius = infoPlanet.currentSize * scale;
         const qx = infoPlanet.x;
         const bounce = Math.sin(Date.now() * 0.004) * 4;
-        const qy = infoPlanet.y - radius - (width < 600 ? 15 : 23) + bounce;
+        const qy = infoPlanet.y - radius - (23 * screenScale) + bounce;
         
         const distToQ = Math.hypot(mouseX - qx, mouseY - qy);
         const distToPlanet = Math.hypot(mouseX - infoPlanet.x, mouseY - infoPlanet.y);
         
-        if (distToQ < 26 || distToPlanet < radius + 15) {
+        const clickScale = Math.min(1.0, Math.max(0.65, width / 1300));
+        
+        if (distToQ < 26 * clickScale || distToPlanet < radius + 15 * clickScale) {
             canvas.style.cursor = 'pointer';
             return;
         }
