@@ -307,12 +307,10 @@ class Star {
         // Синусоидальное мерцание
         const currentAlpha = Math.max(0.1, this.alpha * (0.4 + 0.6 * Math.sin(Date.now() * this.twinkleSpeed + this.twinkleOffset)));
         
-        ctx.save();
         ctx.fillStyle = `rgba(${this.color}, ${currentAlpha})`;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         ctx.fill();
-        ctx.restore();
     }
 }
 
@@ -664,6 +662,13 @@ class Asteroid {
         
         this.tilt = systemTilt; // Наклон пояса астероидов (согласован с облаком/планетами)
         this.zOffset = (Math.random() - 0.5) * 12; // Более тонкий пояс по высоте для упорядоченности
+        
+        // Преинициализируем смещения формы один раз для ускорения отрисовки
+        this.shapePoints = 5;
+        this.shapeOffsets = [];
+        for (let i = 0; i < this.shapePoints; i++) {
+            this.shapeOffsets.push(0.8 + Math.random() * 0.4);
+        }
     }
 
     update() {
@@ -706,27 +711,30 @@ class Asteroid {
         const scale = 1.0 + 0.22 * Math.sin(this.angle);
         const scaledSize = this.size * scale;
         
-        ctx.save();
         ctx.fillStyle = this.color;
         
-        // Рисуем слегка неровный астероид с учетом масштаба перспективы
-        ctx.beginPath();
-        const points = 5;
-        for (let i = 0; i < points; i++) {
-            const angle = (i / points) * Math.PI * 2;
-            // Случайный радиус для угловатости
-            const r = scaledSize * (0.8 + Math.random() * 0.4);
-            const px = this.x + Math.cos(angle) * r;
-            const py = this.y + Math.sin(angle) * r;
-            if (i === 0) {
-                ctx.moveTo(px, py);
-            } else {
-                ctx.lineTo(px, py);
+        if (scaledSize < 2.0) {
+            // Для мелких астероидов рисуем легкий и быстрый круг без лишних вычислений
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, scaledSize, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // Для более крупных рисуем многоугольник по кэшированным смещениям
+            ctx.beginPath();
+            for (let i = 0; i < this.shapePoints; i++) {
+                const angle = (i / this.shapePoints) * Math.PI * 2;
+                const r = scaledSize * this.shapeOffsets[i];
+                const px = this.x + Math.cos(angle) * r;
+                const py = this.y + Math.sin(angle) * r;
+                if (i === 0) {
+                    ctx.moveTo(px, py);
+                } else {
+                    ctx.lineTo(px, py);
+                }
             }
+            ctx.closePath();
+            ctx.fill();
         }
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
     }
 }
 
@@ -844,8 +852,8 @@ function initProtoplanetaryCloud() {
     asteroids = [];
     comets = [];
     
-    // Генерируем 2500 частиц для объемного и плотного облака
-    const particleCount = 2500;
+    // 2500 частиц для десктопа и 1100 для гладкой работы на мобильных устройствах
+    const particleCount = (window.innerWidth < 600) ? 1100 : 2500;
     for (let i = 0; i < particleCount; i++) {
         particles.push(new Particle(false));
     }
@@ -876,6 +884,7 @@ function launchCollapse() {
  * Логика взрыва (Supernova)
  */
 function triggerExplosion() {
+    const isMobile = width < 600;
     currentState = STATE_EXPLOSION;
     
     // Вспышка экрана на максимум
@@ -888,14 +897,14 @@ function triggerExplosion() {
     shockwave.active = true;
     
     // 2. Переводим все выжившие частицы облака в статус осколков взрыва
-    const debrisCount = Math.min(particles.length, 500); // Ограничим количество осколков для производительности
+    // Ограничиваем до 220 на мобильных для экономии ресурсов
+    const debrisCount = Math.min(particles.length, isMobile ? 220 : 500);
     particles = [];
     for (let i = 0; i < debrisCount; i++) {
         particles.push(new Particle(true, centerX, centerY));
     }
     
     // 3. Создаем планеты из центра взрыва (адаптировано под ширину экрана)
-    const isMobile = width < 600;
     const planetCount = isMobile ? (Math.floor(Math.random() * 3) + 3) : (Math.floor(Math.random() * 6) + 4);
     for (let i = 0; i < planetCount; i++) {
         planets.push(new Planet());
@@ -917,20 +926,22 @@ function triggerExplosion() {
         planets[0].hasAntonMark = true;
     }
     
-    // Создаем случайный пояс астероидов (меньше на мобильных устройствах)
-    const asteroidCount = isMobile ? (Math.floor(Math.random() * 50) + 90) : (Math.floor(Math.random() * 80) + 160);
+    // Создаем случайный пояс астероидов (меньше на мобильных устройствах для производительности)
+    const asteroidCount = isMobile ? (Math.floor(Math.random() * 30) + 50) : (Math.floor(Math.random() * 80) + 160);
     for (let i = 0; i < asteroidCount; i++) {
         asteroids.push(new Asteroid());
     }
     
     // 4. Создаем фоновые звезды, разлетающиеся из центра взрыва
-    // 120 звезд летят из центра на высокой скорости
-    for (let i = 0; i < 120; i++) {
+    // 120 звезд летят из центра на высокой скорости (60 на мобильных)
+    const activeStarsCount = isMobile ? 60 : 120;
+    for (let i = 0; i < activeStarsCount; i++) {
         stars.push(new Star(true));
     }
     
-    // 250 звезд плавно проявляются по всей площади экрана (для больших 2к мониторов)
-    for (let i = 0; i < 250; i++) {
+    // 250 звезд плавно проявляются по всей площади экрана (100 на мобильных)
+    const backgroundStarsCount = isMobile ? 100 : 250;
+    for (let i = 0; i < backgroundStarsCount; i++) {
         stars.push(new Star(false, true)); // false - не из центра, true - плавно проявить
     }
 }
@@ -1263,8 +1274,8 @@ function animate() {
 
     // Отрисовка планет, астероидов и комет (существуют в фазе SPACE)
     if (currentState === STATE_SPACE || currentState === STATE_EXPLOSION) {
-        // 1. Случайный спавн комет в фазе SPACE
-        if (currentState === STATE_SPACE && Math.random() < 0.002) {
+        // 1. Случайный спавн комет в фазе SPACE (частота спавна увеличена в 2 раза)
+        if (currentState === STATE_SPACE && Math.random() < 0.004) {
             comets.push(new Comet());
         }
 
