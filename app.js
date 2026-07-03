@@ -22,6 +22,11 @@ const resetButton = document.getElementById('resetButton');
 const cardOverlay = document.getElementById('cardOverlay');
 const closeCardButton = document.getElementById('closeCardButton');
 const dynamicAge = document.getElementById('dynamicAge');
+const cardAvatar = document.getElementById('cardAvatar');
+const cardName = document.getElementById('cardName');
+const cardSubtitle = document.getElementById('cardSubtitle');
+const emailRow = document.getElementById('emailRow');
+const tgRow = document.getElementById('tgRow');
 
 // Параметры экрана и центра
 let width = window.innerWidth;
@@ -29,7 +34,7 @@ let height = window.innerHeight;
 let centerX = width / 2;
 let centerY = height / 2;
 let maxRadius = (width < height) ? (width * 0.48) : (Math.min(width, height) * 0.45); // Более крупный радиус на вертикальных экранах
-let screenScale = Math.min(1.0, Math.max(0.70, width / 1300)); // Глобальный масштаб для плавной адаптивности под экраны
+let screenScale = Math.min(1.0, Math.max(0.82, width / 1300)); // Глобальный масштаб увеличен до 0.82 для крупных планет на мобильных
 let systemTilt = width < height ? 0.82 : 0.65; // Угол наклона системы: раскрываем орбиты по вертикали на смартфонах
 
 // Настройка Retina-дисплеев
@@ -39,7 +44,7 @@ function resizeCanvas() {
     centerX = width / 2;
     centerY = height / 2;
     maxRadius = (width < height) ? (width * 0.48) : (Math.min(width, height) * 0.45);
-    screenScale = Math.min(1.0, Math.max(0.70, width / 1300));
+    screenScale = Math.min(1.0, Math.max(0.82, width / 1300));
     systemTilt = width < height ? 0.82 : 0.65;
 
     const dpr = window.devicePixelRatio || 1;
@@ -370,7 +375,8 @@ class Planet {
                 });
             }
         }
-        this.hasQuestionMark = false;
+        this.hasAntonMark = false;
+        this.hasIchiMark = false;
     }
 
     keepInBounds() {
@@ -492,7 +498,8 @@ class Planet {
         }
 
         // 7. Отрисовка интерактивного знака визитки над планетой (в форме выноски/speech bubble)
-        if (this.hasQuestionMark && currentState === STATE_SPACE) {
+        const hasMark = this.hasAntonMark || this.hasIchiMark;
+        if (hasMark && currentState === STATE_SPACE) {
             const bounce = Math.sin(Date.now() * 0.004) * 4;
             const qx = this.x;
             const qy = this.y - radius - (23 * screenScale) + bounce; // Чуть выше над планетой
@@ -502,12 +509,16 @@ class Planet {
             const r = 6 * screenScale; // Скругление углов
             const pointerHeight = 6 * screenScale;
             
+            // Цвет неоновой рамки (зеленый для Антона, желтый для Ichi)
+            const glowColor = this.hasAntonMark ? '#00ff66' : '#ffff00';
+            const char = this.hasAntonMark ? '!' : '?'; // "!" для Антона, "?" для Ichi
+            
             ctx.save();
             // Свечение неоновой выноски
             ctx.shadowBlur = 12 * screenScale;
-            ctx.shadowColor = '#ff7700';
+            ctx.shadowColor = glowColor;
             ctx.fillStyle = 'rgba(15, 15, 23, 0.95)';
-            ctx.strokeStyle = '#ff7700';
+            ctx.strokeStyle = glowColor;
             ctx.lineWidth = 1.8 * screenScale;
             
             ctx.beginPath();
@@ -532,13 +543,13 @@ class Planet {
             ctx.fill();
             ctx.stroke();
             
-            // Текст "!" по центру выноски
+            // Текст символа по центру выноски
             ctx.fillStyle = '#ffffff';
             const fontSize = Math.round(14 * screenScale);
             ctx.font = `bold ${fontSize}px "Orbitron", sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('!', qx, qy - (1 * screenScale)); 
+            ctx.fillText(char, qx, qy - (1 * screenScale)); 
             ctx.restore();
         }
 
@@ -871,10 +882,17 @@ function triggerExplosion() {
     for (let i = 0; i < planetCount; i++) {
         planets.push(new Planet());
     }
-    // Назначаем одной случайной планете маркер визитки
-    if (planets.length > 0) {
-        const randomIndex = Math.floor(Math.random() * planets.length);
-        planets[randomIndex].hasQuestionMark = true;
+    // Назначаем двум разным планетам маркеры визиток Антона и Ichi
+    if (planets.length >= 2) {
+        const indices = [];
+        while (indices.length < 2) {
+            const idx = Math.floor(Math.random() * planets.length);
+            if (!indices.includes(idx)) indices.push(idx);
+        }
+        planets[indices[0]].hasAntonMark = true;
+        planets[indices[1]].hasIchiMark = true;
+    } else if (planets.length === 1) {
+        planets[0].hasAntonMark = true;
     }
     
     // Создаем случайный пояс астероидов (меньше на мобильных устройствах)
@@ -962,6 +980,20 @@ function calculateAge() {
     return age;
 }
 
+/**
+ * Динамический расчет возраста Ichi от 02.04.2019
+ */
+function calculateIchiAge() {
+    const birthDate = new Date(2019, 3, 2); // 2 апреля (месяц 3)
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    return age;
+}
+
 // Обработка клика по окну (для открытия карточки визитки)
 window.addEventListener('click', (e) => {
     if (currentState !== STATE_SPACE) return;
@@ -970,30 +1002,49 @@ window.addEventListener('click', (e) => {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
-    const infoPlanet = planets.find(p => p.hasQuestionMark);
-    if (infoPlanet) {
-        const scale = 1.0 + 0.22 * Math.sin(infoPlanet.angle);
-        const radius = infoPlanet.currentSize * scale;
-        const qx = infoPlanet.x;
+    // Ищем, по какой планете кликнули (Антона или Ichi)
+    const clickedPlanet = planets.find(p => {
+        if (!p.hasAntonMark && !p.hasIchiMark) return false;
+        
+        const scale = 1.0 + 0.22 * Math.sin(p.angle);
+        const radius = p.currentSize * scale;
+        const qx = p.x;
         const bounce = Math.sin(Date.now() * 0.004) * 4;
-        const qy = infoPlanet.y - radius - (23 * screenScale) + bounce; // Должно соответствовать координатам отрисовки выноски
+        const qy = p.y - radius - (23 * screenScale) + bounce;
         
         const distToQ = Math.hypot(mouseX - qx, mouseY - qy);
-        const distToPlanet = Math.hypot(mouseX - infoPlanet.x, mouseY - infoPlanet.y);
+        const distToPlanet = Math.hypot(mouseX - p.x, mouseY - p.y);
         
-        // Масштабируем область клика пропорционально экрану, но не делаем её слишком мелкой для пальцев (clamped [0.65, 1.0])
         const clickScale = Math.min(1.0, Math.max(0.65, width / 1300));
+        return distToQ < 26 * clickScale || distToPlanet < radius + 15 * clickScale;
+    });
+    
+    if (clickedPlanet) {
+        cardOpeningTime = Date.now(); // Фиксируем время открытия
         
-        // Клик срабатывает и по выноске (26px * clickScale), и по самой планете (radius + 15px * clickScale)
-        if (distToQ < 26 * clickScale || distToPlanet < radius + 15 * clickScale) {
-            cardOpeningTime = Date.now(); // Фиксируем время открытия
+        if (clickedPlanet.hasAntonMark) {
+            // Данные Антона
+            cardAvatar.src = 'avatar.jpg';
+            cardName.textContent = 'Anton';
+            cardSubtitle.textContent = 'developer';
             dynamicAge.textContent = calculateAge();
-            cardOverlay.classList.remove('hidden');
+            emailRow.style.display = 'flex';
+            tgRow.style.display = 'flex';
+        } else {
+            // Данные Ichi
+            cardAvatar.src = 'ichi.png';
+            cardName.textContent = 'Ichi';
+            cardSubtitle.textContent = 'happy dog';
+            dynamicAge.textContent = calculateIchiAge();
+            emailRow.style.display = 'none';
+            tgRow.style.display = 'none';
         }
+        
+        cardOverlay.classList.remove('hidden');
     }
 });
 
-// Отслеживание наведения мыши для смены курсора на pointer над "!" или самой планетой
+// Отслеживание наведения мыши для смены курсора на pointer над выносками или самими планетами
 window.addEventListener('mousemove', (e) => {
     if (currentState !== STATE_SPACE) {
         canvas.style.cursor = 'default';
@@ -1004,25 +1055,27 @@ window.addEventListener('mousemove', (e) => {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
-    const infoPlanet = planets.find(p => p.hasQuestionMark);
-    if (infoPlanet) {
-        const scale = 1.0 + 0.22 * Math.sin(infoPlanet.angle);
-        const radius = infoPlanet.currentSize * scale;
-        const qx = infoPlanet.x;
+    const isHovered = planets.some(p => {
+        if (!p.hasAntonMark && !p.hasIchiMark) return false;
+        
+        const scale = 1.0 + 0.22 * Math.sin(p.angle);
+        const radius = p.currentSize * scale;
+        const qx = p.x;
         const bounce = Math.sin(Date.now() * 0.004) * 4;
-        const qy = infoPlanet.y - radius - (23 * screenScale) + bounce;
+        const qy = p.y - radius - (23 * screenScale) + bounce;
         
         const distToQ = Math.hypot(mouseX - qx, mouseY - qy);
-        const distToPlanet = Math.hypot(mouseX - infoPlanet.x, mouseY - infoPlanet.y);
+        const distToPlanet = Math.hypot(mouseX - p.x, mouseY - p.y);
         
         const clickScale = Math.min(1.0, Math.max(0.65, width / 1300));
-        
-        if (distToQ < 26 * clickScale || distToPlanet < radius + 15 * clickScale) {
-            canvas.style.cursor = 'pointer';
-            return;
-        }
+        return distToQ < 26 * clickScale || distToPlanet < radius + 15 * clickScale;
+    });
+    
+    if (isHovered) {
+        canvas.style.cursor = 'pointer';
+    } else {
+        canvas.style.cursor = 'default';
     }
-    canvas.style.cursor = 'default';
 });
 
 // Закрытие карточки по крестику
