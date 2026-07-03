@@ -336,13 +336,18 @@ class Planet {
         const orbitRange = 0.42 + (1 - screenScale) * 0.1;
         this.orbitRadius = maxRadius * (minOrbit + Math.random() * orbitRange);
         
-        // Скорость орбиты по закону Кеплера (быстрее у центра) снижена на 20%
-        this.orbitSpeed = (0.0012 + 0.0028 * (1 - this.orbitRadius / maxRadius)) * 0.8;
-        
         // Базовый размер планеты (текущий size рассчитывается динамически в update)
         this.baseSize = Math.random() * 18 + 4;
         this.size = this.baseSize * screenScale;
         this.currentSize = 0.1; // Растут от нуля при взрыве
+        
+        // Фактор размера/массы: чем планета крупнее, тем медленнее она движется (инерция)
+        const sizeFactor = 1.0 + (this.baseSize - 4) / 30;
+        
+        // Скорость орбиты по закону Кеплера (обратно пропорциональна квадратному корню из радиуса)
+        // и деленная на фактор размера (более массивные планеты движутся медленнее)
+        const baseSpeed = 0.020; // Базовая константа скорости системы снижена для медитативного дрейфа
+        this.orbitSpeed = (baseSpeed / Math.sqrt(this.orbitRadius)) / sizeFactor;
         
         // Случайные цвета для создания 3D текстуры с помощью градиентов
         this.color1 = getRandomSpaceColor();
