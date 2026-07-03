@@ -76,6 +76,9 @@ let comets = [];
 let spaceships = [];
 let solarProminences = [];
 
+let currentTimestamp = Date.now();
+const cloudGroups = Array.from({ length: 5 }, () => []);
+
 let cardOpeningTime = 0; // Таймер для предотвращения мгновенного закрытия карточки (ghost clicks)
 
 let isDoubleStar = false;
@@ -180,7 +183,7 @@ class Particle {
                 this.angle += this.orbitSpeed;
                 
                 // Легкое покачивание радиуса для динамики газового облака
-                const radiusPulse = Math.sin(Date.now() * 0.0015 + this.r) * 1.8;
+                const radiusPulse = Math.sin(currentTimestamp * 0.0015 + this.r) * 1.8;
                 const currentR = this.r + radiusPulse;
                 
                 this.x = centerX + Math.cos(this.angle) * currentR + this.noiseX;
@@ -234,11 +237,9 @@ class Particle {
         
         if (this.alpha <= 0) return;
         
-        // Быстрый рендеринг осколка без save/restore и shadowBlur
+        // Быстрый рендеринг осколка без save/restore, arc() и shadowBlur
         ctx.fillStyle = `hsla(${this.h}, ${this.s}%, ${this.l}%, ${this.alpha})`;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(this.x - this.size, this.y - this.size, this.size * 2, this.size * 2);
     }
 }
 
@@ -316,12 +317,10 @@ class Star {
 
     draw() {
         // Синусоидальное мерцание
-        const currentAlpha = Math.max(0.1, this.alpha * (0.4 + 0.6 * Math.sin(Date.now() * this.twinkleSpeed + this.twinkleOffset)));
+        const currentAlpha = Math.max(0.1, this.alpha * (0.4 + 0.6 * Math.sin(currentTimestamp * this.twinkleSpeed + this.twinkleOffset)));
         
         ctx.fillStyle = `rgba(${this.color}, ${currentAlpha})`;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillRect(this.x - this.size / 2, this.y - this.size / 2, this.size, this.size);
     }
 }
 
@@ -521,7 +520,7 @@ class Planet {
         // 7. Отрисовка интерактивного знака визитки над планетой (в форме выноски/speech bubble)
         const hasMark = this.hasAntonMark || this.hasIchiMark || this.hasMysteryMark;
         if (hasMark && currentState === STATE_SPACE) {
-            const bounce = Math.sin(Date.now() * 0.004) * 4;
+            const bounce = Math.sin(currentTimestamp * 0.004) * 4;
             const qx = this.x;
             const qy = this.y - radius - (23 * screenScale) + bounce; // Чуть выше над планетой
             
@@ -684,7 +683,7 @@ class Planet {
             ctx.moveTo(0, -radius * 0.9);
             ctx.lineTo(0, -radius * 1.15);
             ctx.stroke();
-            const isLightOn = Math.sin(Date.now() * 0.008) > 0;
+            const isLightOn = Math.sin(currentTimestamp * 0.008) > 0;
             if (isLightOn) {
                 ctx.fillStyle = '#ff3333';
                 ctx.shadowBlur = 6 * screenScale;
@@ -737,7 +736,7 @@ class Planet {
                 ctx.strokeRect(radius * 0.15, -radius * 0.05, radius * 0.18, radius * 0.1);
                 ctx.restore();
             }
-            const isLightOn = Math.sin(Date.now() * 0.01) > 0;
+            const isLightOn = Math.sin(currentTimestamp * 0.01) > 0;
             if (isLightOn) {
                 ctx.fillStyle = '#00ff66';
                 ctx.shadowBlur = 8 * screenScale;
@@ -987,10 +986,8 @@ class Asteroid {
         ctx.fillStyle = this.color;
         
         if (scaledSize < 2.0) {
-            // Для мелких астероидов рисуем легкий и быстрый круг без лишних вычислений
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, scaledSize, 0, Math.PI * 2);
-            ctx.fill();
+            // Для мелких астероидов рисуем легкий и быстрый квадрат вместо круга
+            ctx.fillRect(this.x - scaledSize, this.y - scaledSize, scaledSize * 2, scaledSize * 2);
         } else {
             // Для более крупных рисуем многоугольник по кэшированным смещениям
             ctx.beginPath();
@@ -1346,7 +1343,7 @@ window.addEventListener('click', (e) => {
         const scale = 1.0 + 0.22 * Math.sin(p.angle);
         const radius = p.currentSize * scale;
         const qx = p.x;
-        const bounce = Math.sin(Date.now() * 0.004) * 4;
+        const bounce = Math.sin(currentTimestamp * 0.004) * 4;
         const qy = p.y - radius - (23 * screenScale) + bounce;
         
         const distToQ = Math.hypot(mouseX - qx, mouseY - qy);
@@ -1419,7 +1416,7 @@ window.addEventListener('mousemove', (e) => {
         const scale = 1.0 + 0.22 * Math.sin(p.angle);
         const radius = p.currentSize * scale;
         const qx = p.x;
-        const bounce = Math.sin(Date.now() * 0.004) * 4;
+        const bounce = Math.sin(currentTimestamp * 0.004) * 4;
         const qy = p.y - radius - (23 * screenScale) + bounce;
         
         const distToQ = Math.hypot(mouseX - qx, mouseY - qy);
@@ -1452,6 +1449,7 @@ cardOverlay.addEventListener('click', (e) => {
  * Главный цикл отрисовки и симуляции
  */
 function animate() {
+    currentTimestamp = Date.now();
     // Очистка Canvas
     // Используем легкую полупрозрачную очистку для эффекта хвостов (motion blur) у быстро движущихся частиц
     if (currentState === STATE_EXPLOSION) {
@@ -1495,14 +1493,14 @@ function animate() {
         // 1. Отрисовка облака пакетами (Batch Rendering) по 5 цветовым группам
         // Это снижает количество вызовов fill() с 2500 до 5, убирая любые лаги
         if (cloudParticles.length > 0) {
-            const groups = Array.from({ length: spaceColors.length }, () => []);
+            cloudGroups.forEach(g => g.length = 0);
             
             cloudParticles.forEach(p => {
-                groups[p.colorIndex].push(p);
+                cloudGroups[p.colorIndex].push(p);
             });
             
             for (let g = 0; g < spaceColors.length; g++) {
-                const group = groups[g];
+                const group = cloudGroups[g];
                 if (group.length === 0) continue;
                 
                 const template = spaceColors[g];
@@ -1513,8 +1511,7 @@ function animate() {
                 ctx.beginPath();
                 
                 group.forEach(p => {
-                    ctx.moveTo(p.x + p.size, p.y);
-                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.rect(p.x - p.size, p.y - p.size, p.size * 2, p.size * 2);
                 });
                 
                 ctx.fill();
@@ -1602,6 +1599,13 @@ function animate() {
             }
         }
         
+        // 2a. Отрисовываем заднюю полусферу пояса астероидов (Z-глубина < 0)
+        asteroids.forEach(asteroid => {
+            if (Math.sin(asteroid.angle) < 0) {
+                asteroid.draw();
+            }
+        });
+        
         // 3. Создаем объект центрального светила (Солнца) для Z-сортировки
         const sun = {
             y: centerY,
@@ -1609,7 +1613,7 @@ function animate() {
                 if (isDoubleStar) {
                     const orbitR = 20 * screenScale;
                     const rotSpeed = 0.002;
-                    const angle1 = Date.now() * rotSpeed;
+                    const angle1 = currentTimestamp * rotSpeed;
                     const angle2 = angle1 + Math.PI;
                     
                     const starsData = [
@@ -1626,7 +1630,7 @@ function animate() {
                     ];
                     
                     starsData.forEach(s => {
-                        const bounce = Math.sin(Date.now() * 0.004 + s.pulseOffset) * 0.03;
+                        const bounce = Math.sin(currentTimestamp * 0.004 + s.pulseOffset) * 0.03;
                         const baseSize = 13 * screenScale;
                         const size = baseSize * (1.0 + bounce);
                         
@@ -1665,7 +1669,7 @@ function animate() {
                         ctx.restore();
                     });
                 } else {
-                    const bounce = Math.sin(Date.now() * 0.003) * 0.04;
+                    const bounce = Math.sin(currentTimestamp * 0.003) * 0.04;
                     const baseSize = 25 * screenScale;
                     const size = baseSize * (1.0 + bounce);
                     
@@ -1687,7 +1691,7 @@ function animate() {
                     ctx.fill();
                     ctx.restore();
                     
-                    const time = Date.now() * 0.001;
+                    const time = currentTimestamp * 0.001;
                     while (solarProminences.length < 4) {
                         solarProminences.push({
                             angle: Math.random() * Math.PI * 2,
@@ -1773,14 +1777,22 @@ function animate() {
             }
         };
 
-        // 4. Объединяем их в единую очередь рендеринга для Z-сортировки по глубине (координате Y)
-        const renderQueue = [sun, ...asteroids, ...planets, ...comets, ...spaceships];
+        // 4. Объединяем в очередь рендеринга для Z-сортировки по глубине (координате Y) только крупные объекты.
+        // Астероиды рисуются отдельно без сортировки для гигантского прироста производительности.
+        const renderQueue = [sun, ...planets, ...comets, ...spaceships];
         // Сортируем: объекты с меньшим Y (на заднем плане) рисуются первыми
         renderQueue.sort((a, b) => a.y - b.y);
         
         // 5. Отрисовываем отсортированную очередь (планеты красиво огибают Солнце спереди и сзади!)
         renderQueue.forEach(obj => {
             obj.draw();
+        });
+        
+        // 6. Отрисовываем переднюю полусферу пояса астероидов (Z-глубина >= 0)
+        asteroids.forEach(asteroid => {
+            if (Math.sin(asteroid.angle) >= 0) {
+                asteroid.draw();
+            }
         });
     }
 
