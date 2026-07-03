@@ -73,8 +73,12 @@ let stars = [];
 let planets = [];
 let asteroids = [];
 let comets = [];
+let spaceships = [];
+let solarProminences = [];
 
 let cardOpeningTime = 0; // Таймер для предотвращения мгновенного закрытия карточки (ghost clicks)
+
+let isDoubleStar = false;
 
 // Параметры взрыва (Supernova)
 let shockwave = {
@@ -325,35 +329,28 @@ class Star {
  * Класс планеты (рождается после взрыва)
  */
 class Planet {
-    constructor() {
-        // Рождаются в центре (точке взрыва)
+    constructor(orbitRadius = null) {
         this.x = centerX;
         this.y = centerY;
-        this.r = 0; // Расстояние от центра (полярные координаты)
-        
+        this.r = 0;
         this.angle = Math.random() * Math.PI * 2;
-        // Скорость выброса (радиальный импульс)
         this.radialSpeed = (Math.random() * 2.0 + 1.5) * 0.8; 
-        
-        // Задержка взрыва для хаотичного выброса
         this.explosionDelay = Math.random() * 25;
         
-        // Более широкое распределение орбит на меньших экранах для избежания скученности планет
-        const minOrbit = 0.15 + (1 - screenScale) * 0.1;
-        const orbitRange = 0.42 + (1 - screenScale) * 0.1;
-        this.orbitRadius = maxRadius * (minOrbit + Math.random() * orbitRange);
+        if (orbitRadius !== null) {
+            this.orbitRadius = orbitRadius;
+        } else {
+            const minOrbit = 0.35 + (1 - screenScale) * 0.05;
+            const orbitRange = 0.55 + (1 - screenScale) * 0.05;
+            this.orbitRadius = maxRadius * (minOrbit + Math.random() * orbitRange);
+        }
         
-        // Базовый размер планеты (текущий size рассчитывается динамически в update)
-        this.baseSize = Math.random() * 18 + 4;
+        this.baseSize = Math.random() * 16 + 10;
         this.size = this.baseSize * screenScale;
-        this.currentSize = 0.1; // Растут от нуля при взрыве
+        this.currentSize = 0.1;
         
-        // Фактор размера/массы: чем планета крупнее, тем медленнее она движется (инерция)
-        const sizeFactor = 1.0 + (this.baseSize - 4) / 30;
-        
-        // Скорость орбиты по закону Кеплера (обратно пропорциональна квадратному корню из радиуса)
-        // и деленная на фактор размера (более массивные планеты движутся медленнее)
-        const baseSpeed = 0.020; // Базовая константа скорости системы снижена для медитативного дрейфа
+        const sizeFactor = 1.0 + (this.baseSize - 10) / 30;
+        const baseSpeed = 0.020;
         this.orbitSpeed = (baseSpeed / Math.sqrt(this.orbitRadius)) / sizeFactor;
         
         // Случайные цвета для создания 3D текстуры с помощью градиентов
@@ -388,6 +385,10 @@ class Planet {
         this.hasAntonMark = false;
         this.hasIchiMark = false;
         this.hasMysteryMark = false;
+        this.isSpaceStation = false;
+        this.stationType = Math.floor(Math.random() * 2);
+        this.stationAngle = Math.random() * Math.PI * 2;
+        this.stationRotSpeed = (Math.random() * 0.01 + 0.005) * (Math.random() > 0.5 ? 1 : -1);
     }
 
     keepInBounds() {
@@ -441,6 +442,10 @@ class Planet {
         // Медленное вращение тени (создает эффект осевого вращения планеты)
         this.shadowAngle += 0.001;
 
+        if (this.isSpaceStation) {
+            this.stationAngle += this.stationRotSpeed;
+        }
+
         // Обновление спутников
         this.moons.forEach(moon => {
             moon.angle += moon.speed;
@@ -454,58 +459,63 @@ class Planet {
 
         ctx.save();
         
-        // 1. Отрисовка задней части колец (если есть), чтобы планета перекрывала переднюю часть
-        if (this.hasRings) {
-            this.drawRings(true, scale);
-        }
+        if (this.isSpaceStation) {
+            this.moons.forEach(moon => {
+                const cos = Math.cos(moon.angle);
+                if (cos < 0) {
+                    this.drawMoon(moon, scale);
+                }
+            });
 
-        // 2. Отрисовка спутников на задней полуорбите
-        this.moons.forEach(moon => {
-            const cos = Math.cos(moon.angle);
-            if (cos < 0) { // Спутник сзади
-                this.drawMoon(moon, scale);
+            this.drawSpaceStation(scale);
+
+            this.moons.forEach(moon => {
+                const cos = Math.cos(moon.angle);
+                if (cos >= 0) {
+                    this.drawMoon(moon, scale);
+                }
+            });
+        } else {
+            if (this.hasRings) {
+                this.drawRings(true, scale);
             }
-        });
-
-        // 3. Отрисовка тела планеты с 3D-градиентом
-        const grad = ctx.createRadialGradient(
-            this.x - radius * 0.35, this.y - radius * 0.35, radius * 0.1,
-            this.x, this.y, radius
-        );
-        grad.addColorStop(0, this.color1);
-        grad.addColorStop(0.5, this.color2);
-        grad.addColorStop(1, '#000000'); // Затемнение по краям для объема
-
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 4. Реалистичная тень (эффект фазы освещения)
-        const shadowGrad = ctx.createRadialGradient(
-            this.x, this.y, radius * 0.6,
-            this.x, this.y, radius
-        );
-        shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
-        shadowGrad.addColorStop(0.8, 'rgba(0, 0, 0, 0.45)');
-        shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0.95)');
-        
-        ctx.fillStyle = shadowGrad;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 5. Отрисовка спутников на передней полуорбите
-        this.moons.forEach(moon => {
-            const cos = Math.cos(moon.angle);
-            if (cos >= 0) { // Спутник спереди
-                this.drawMoon(moon, scale);
+            this.moons.forEach(moon => {
+                const cos = Math.cos(moon.angle);
+                if (cos < 0) {
+                    this.drawMoon(moon, scale);
+                }
+            });
+            const grad = ctx.createRadialGradient(
+                this.x - radius * 0.35, this.y - radius * 0.35, radius * 0.1,
+                this.x, this.y, radius
+            );
+            grad.addColorStop(0, this.color1);
+            grad.addColorStop(0.5, this.color2);
+            grad.addColorStop(1, '#000000');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
+            ctx.fill();
+            const shadowGrad = ctx.createRadialGradient(
+                this.x, this.y, radius * 0.6,
+                this.x, this.y, radius
+            );
+            shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+            shadowGrad.addColorStop(0.8, 'rgba(0, 0, 0, 0.45)');
+            shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0.95)');
+            ctx.fillStyle = shadowGrad;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
+            ctx.fill();
+            this.moons.forEach(moon => {
+                const cos = Math.cos(moon.angle);
+                if (cos >= 0) {
+                    this.drawMoon(moon, scale);
+                }
+            });
+            if (this.hasRings) {
+                this.drawRings(false, scale);
             }
-        });
-
-        // 6. Отрисовка передней части колец
-        if (this.hasRings) {
-            this.drawRings(false, scale);
         }
 
         // 7. Отрисовка интерактивного знака визитки над планетой (в форме выноски/speech bubble)
@@ -530,8 +540,8 @@ class Planet {
                 glowColor = '#00ff66';
                 char = '!';
             } else if (this.hasIchiMark) {
-                glowColor = '#ffff00';
-                char = '?';
+                glowColor = '#ff7700';
+                char = '❤️';
             } else if (this.hasMysteryMark) {
                 glowColor = '#ff3333';
                 char = '!?';
@@ -639,6 +649,257 @@ class Planet {
 
         ctx.restore();
     }
+
+    drawSpaceStation(scale) {
+        const radius = this.currentSize * scale;
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.stationAngle);
+        
+        if (this.stationType === 0) {
+            ctx.strokeStyle = '#8899a6';
+            ctx.lineWidth = 2 * screenScale * scale;
+            ctx.fillStyle = '#1b2228';
+            ctx.beginPath();
+            ctx.arc(0, 0, radius * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(-radius * 0.9, 0);
+            ctx.lineTo(radius * 0.9, 0);
+            ctx.moveTo(0, -radius * 0.9);
+            ctx.lineTo(0, radius * 0.9);
+            ctx.stroke();
+            ctx.fillStyle = '#00aaff';
+            ctx.strokeStyle = '#005588';
+            ctx.lineWidth = 1 * screenScale * scale;
+            const panelW = radius * 0.35;
+            const panelH = radius * 0.18;
+            ctx.fillRect(-radius * 0.9 - panelW/2, -panelH/2, panelW, panelH);
+            ctx.strokeRect(-radius * 0.9 - panelW/2, -panelH/2, panelW, panelH);
+            ctx.fillRect(radius * 0.9 - panelW/2, -panelH/2, panelW, panelH);
+            ctx.strokeRect(radius * 0.9 - panelW/2, -panelH/2, panelW, panelH);
+            ctx.strokeStyle = '#8899a6';
+            ctx.beginPath();
+            ctx.moveTo(0, -radius * 0.9);
+            ctx.lineTo(0, -radius * 1.15);
+            ctx.stroke();
+            const isLightOn = Math.sin(Date.now() * 0.008) > 0;
+            if (isLightOn) {
+                ctx.fillStyle = '#ff3333';
+                ctx.shadowBlur = 6 * screenScale;
+                ctx.shadowColor = '#ff3333';
+                ctx.beginPath();
+                ctx.arc(0, -radius * 1.15, 2.5 * screenScale * scale, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        } else {
+            ctx.strokeStyle = '#8899a6';
+            ctx.lineWidth = 1.8 * screenScale * scale;
+            ctx.beginPath();
+            for (let i = 0; i < 3; i++) {
+                const a = (i * Math.PI * 2) / 3;
+                const xPos = Math.cos(a) * radius * 0.7;
+                const yPos = Math.sin(a) * radius * 0.7;
+                if (i === 0) ctx.moveTo(xPos, yPos);
+                else ctx.lineTo(xPos, yPos);
+            }
+            ctx.closePath();
+            ctx.stroke();
+            ctx.beginPath();
+            for (let i = 0; i < 3; i++) {
+                const a = (i * Math.PI * 2) / 3;
+                ctx.moveTo(0, 0);
+                ctx.lineTo(Math.cos(a) * radius * 0.7, Math.sin(a) * radius * 0.7);
+            }
+            ctx.stroke();
+            ctx.fillStyle = '#151b20';
+            ctx.beginPath();
+            ctx.arc(0, 0, radius * 0.25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            for (let i = 0; i < 3; i++) {
+                const a = (i * Math.PI * 2) / 3;
+                const xPos = Math.cos(a) * radius * 0.7;
+                const yPos = Math.sin(a) * radius * 0.7;
+                ctx.fillStyle = '#1b2228';
+                ctx.beginPath();
+                ctx.arc(xPos, yPos, radius * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.save();
+                ctx.translate(xPos, yPos);
+                ctx.rotate(a);
+                ctx.fillStyle = '#00ffff';
+                ctx.strokeStyle = '#005588';
+                ctx.lineWidth = 1 * screenScale * scale;
+                ctx.fillRect(radius * 0.15, -radius * 0.05, radius * 0.18, radius * 0.1);
+                ctx.strokeRect(radius * 0.15, -radius * 0.05, radius * 0.18, radius * 0.1);
+                ctx.restore();
+            }
+            const isLightOn = Math.sin(Date.now() * 0.01) > 0;
+            if (isLightOn) {
+                ctx.fillStyle = '#00ff66';
+                ctx.shadowBlur = 8 * screenScale;
+                ctx.shadowColor = '#00ff66';
+                ctx.beginPath();
+                ctx.arc(0, 0, 3 * screenScale * scale, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+    }
+}
+
+class Spaceship {
+    constructor(fromPlanet = null) {
+        if (fromPlanet) {
+            this.fromPlanet = fromPlanet;
+        } else {
+            this.fromPlanet = planets[Math.floor(Math.random() * planets.length)];
+        }
+        this.selectNextDestination();
+        this.x = this.fromPlanet.x;
+        this.y = this.fromPlanet.y;
+        this.progress = 0;
+        this.speed = 0.001 + Math.random() * 0.0015;
+        this.curveFactor = (Math.random() - 0.5) * 120 * screenScale; 
+        const colors = ['#00ffff', '#ff5e00', '#00ff66', '#ff00ff', '#ffff00'];
+        this.color = colors[Math.floor(Math.random() * colors.length)];
+        this.trailHistory = [];
+        this.maxTrailLength = 35;
+        this.state = 'flying';
+        this.orbitAngle = Math.random() * Math.PI * 2;
+        this.orbitSpeed = 0.04 + Math.random() * 0.04;
+        this.orbitRadius = this.fromPlanet.currentSize * 1.3;
+        this.orbitTimer = 0;
+        this.maxOrbitTime = 180 + Math.floor(Math.random() * 180);
+    }
+    selectNextDestination() {
+        if (Math.random() < 0.20 && planets.length > 0) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = Math.max(width, height) * 1.5;
+            this.toPlanet = {
+                x: centerX + Math.cos(angle) * dist,
+                y: centerY + Math.sin(angle) * dist,
+                currentSize: 0,
+                angle: 0
+            };
+            this.speed = 0.0015 + Math.random() * 0.0015;
+            return;
+        }
+        if (planets.length <= 1) {
+            this.toPlanet = this.fromPlanet;
+            return;
+        }
+        let dest = planets[Math.floor(Math.random() * planets.length)];
+        while (dest === this.fromPlanet) {
+            dest = planets[Math.floor(Math.random() * planets.length)];
+        }
+        this.toPlanet = dest;
+    }
+    update() {
+        if (this.state === 'flying') {
+            this.progress += this.speed;
+            if (this.progress >= 1) {
+                this.progress = 1;
+                if (this.toPlanet.currentSize === 0) {
+                    this.fromPlanet = planets[Math.floor(Math.random() * planets.length)];
+                    this.selectNextDestination();
+                    this.x = this.fromPlanet.x;
+                    this.y = this.fromPlanet.y;
+                    this.progress = 0;
+                    this.state = 'flying';
+                    this.trailHistory = [];
+                    this.curveFactor = (Math.random() - 0.5) * 120 * screenScale;
+                    this.speed = 0.001 + Math.random() * 0.0015;
+                    return;
+                }
+                this.state = 'orbiting';
+                this.orbitTimer = 0;
+                this.orbitAngle = Math.atan2(this.y - this.toPlanet.y, this.x - this.toPlanet.x);
+                this.orbitRadius = this.toPlanet.currentSize * 1.3;
+            }
+            const startX = this.fromPlanet.x;
+            const startY = this.fromPlanet.y;
+            const endX = this.toPlanet.x;
+            const endY = this.toPlanet.y;
+            const lerpX = startX + (endX - startX) * this.progress;
+            const lerpY = startY + (endY - startY) * this.progress;
+            const dx = endX - startX;
+            const dy = endY - startY;
+            const len = Math.hypot(dx, dy);
+            if (len > 0) {
+                const nx = -dy / len;
+                const ny = dx / len;
+                const offset = Math.sin(this.progress * Math.PI) * this.curveFactor;
+                this.x = lerpX + nx * offset;
+                this.y = lerpY + ny * offset * systemTilt;
+            } else {
+                this.x = lerpX;
+                this.y = lerpY;
+            }
+        } else if (this.state === 'orbiting') {
+            this.orbitAngle += this.orbitSpeed;
+            this.orbitRadius = this.toPlanet.currentSize * 1.3;
+            const scale = 1.0 + 0.22 * Math.sin(this.toPlanet.angle);
+            const r = this.orbitRadius * scale;
+            this.x = this.toPlanet.x + Math.cos(this.orbitAngle) * r;
+            this.y = this.toPlanet.y + Math.sin(this.orbitAngle) * r * systemTilt;
+            this.orbitTimer++;
+            if (this.orbitTimer >= this.maxOrbitTime) {
+                this.fromPlanet = this.toPlanet;
+                this.selectNextDestination();
+                this.progress = 0;
+                this.state = 'flying';
+                this.curveFactor = (Math.random() - 0.5) * 120 * screenScale;
+                this.speed = 0.001 + Math.random() * 0.0015;
+            }
+        }
+        this.trailHistory.push({ x: this.x, y: this.y });
+        if (this.trailHistory.length > this.maxTrailLength) {
+            this.trailHistory.shift();
+        }
+    }
+    draw() {
+        const len = this.trailHistory.length;
+        if (len < 2) return;
+        ctx.save();
+        for (let i = 0; i < len - 1; i++) {
+            const p1 = this.trailHistory[i];
+            const p2 = this.trailHistory[i + 1];
+            const progress = i / len;
+            ctx.strokeStyle = this.color;
+            ctx.globalAlpha = progress * 0.4;
+            ctx.lineWidth = 1.5 * screenScale * progress;
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1.0;
+        let angle = 0;
+        if (len >= 2) {
+            const pLast = this.trailHistory[len - 1];
+            const pPrev = this.trailHistory[len - 2];
+            angle = Math.atan2(pLast.y - pPrev.y, pLast.x - pPrev.x);
+        }
+        ctx.translate(this.x, this.y);
+        ctx.rotate(angle);
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowBlur = 8 * screenScale;
+        ctx.shadowColor = this.color;
+        ctx.beginPath();
+        const w = 5 * screenScale;
+        const h = 3 * screenScale;
+        ctx.moveTo(w, 0);
+        ctx.lineTo(-w, -h);
+        ctx.lineTo(-w * 0.5, 0);
+        ctx.lineTo(-w, h);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
 }
 
 /**
@@ -658,8 +919,8 @@ class Asteroid {
         // Задержка взрыва: астероиды вылетают неравномерными пачками/волнами (до 45 кадров)
         this.explosionDelay = Math.random() * 45;
         
-        // Концентрируем астероиды во внешнем узком кольцевом поясе (0.68 - 0.85 от maxRadius)
-        this.orbitRadius = maxRadius * (0.68 + Math.random() * 0.17);
+        // Концентрируем астероиды во внешнем узком кольцевом поясе (0.98 - 1.18 от maxRadius)
+        this.orbitRadius = maxRadius * (0.98 + Math.random() * 0.20);
         this.angle = angle; // Начинает орбиту с угла разлета
         
         // Движение строго в одном направлении (в ту же сторону, что и вращение облака)
@@ -863,6 +1124,9 @@ function initProtoplanetaryCloud() {
     planets = [];
     asteroids = [];
     comets = [];
+    spaceships = [];
+    solarProminences = [];
+    isDoubleStar = false;
     
     // 2500 частиц для десктопа и 1100 для гладкой работы на мобильных устройствах
     const particleCount = (window.innerWidth < 600) ? 1100 : 2500;
@@ -898,6 +1162,7 @@ function launchCollapse() {
 function triggerExplosion() {
     const isMobile = width < 600;
     currentState = STATE_EXPLOSION;
+    isDoubleStar = Math.random() < 0.5;
     
     // Вспышка экрана на максимум
     flashAlpha = 1.0;
@@ -916,10 +1181,14 @@ function triggerExplosion() {
         particles.push(new Particle(true, centerX, centerY));
     }
     
-    // 3. Создаем планеты из центра взрыва (адаптировано под ширину экрана)
     const planetCount = isMobile ? (Math.floor(Math.random() * 3) + 3) : (Math.floor(Math.random() * 6) + 4);
+    const minOrbit = 0.35 + (1 - screenScale) * 0.05;
+    const orbitRange = 0.55 + (1 - screenScale) * 0.05;
     for (let i = 0; i < planetCount; i++) {
-        planets.push(new Planet());
+        const t = i / (planetCount - 1 || 1);
+        const orbitFactor = minOrbit + t * orbitRange + (Math.random() * 0.06 - 0.03);
+        const radius = maxRadius * orbitFactor;
+        planets.push(new Planet(radius));
     }
     // Назначаем трем разным планетам маркеры визиток Антона, Ichi и Mystery
     if (planets.length >= 3) {
@@ -937,6 +1206,23 @@ function triggerExplosion() {
     } else if (planets.length === 1) {
         planets[0].hasAntonMark = true;
     }
+
+    const stationCount = Math.floor(Math.random() * 3);
+    const stationIndices = [];
+    while (stationIndices.length < Math.min(stationCount, planets.length)) {
+        const idx = Math.floor(Math.random() * planets.length);
+        if (!stationIndices.includes(idx)) {
+            stationIndices.push(idx);
+        }
+    }
+    stationIndices.forEach((idx, i) => {
+        planets[idx].isSpaceStation = true;
+        if (stationIndices.length === 2) {
+            planets[idx].stationType = i;
+        } else {
+            planets[idx].stationType = Math.floor(Math.random() * 2);
+        }
+    });
     
     // Создаем случайный пояс астероидов (меньше на мобильных устройствах для производительности)
     const asteroidCount = isMobile ? (Math.floor(Math.random() * 30) + 50) : (Math.floor(Math.random() * 80) + 160);
@@ -955,6 +1241,12 @@ function triggerExplosion() {
     const backgroundStarsCount = isMobile ? 100 : 250;
     for (let i = 0; i < backgroundStarsCount; i++) {
         stars.push(new Star(false, true)); // false - не из центра, true - плавно проявить
+    }
+
+    spaceships = [];
+    const shipCount = planets.length >= 3 ? (isMobile ? 3 : 5) : 2;
+    for (let i = 0; i < shipCount; i++) {
+        spaceships.push(new Spaceship());
     }
 }
 
@@ -1300,6 +1592,7 @@ function animate() {
         // 2. Обновляем физику всех объектов
         asteroids.forEach(asteroid => asteroid.update());
         planets.forEach(planet => planet.update());
+        spaceships.forEach(ship => ship.update());
         
         for (let i = comets.length - 1; i >= 0; i--) {
             const comet = comets[i];
@@ -1313,52 +1606,175 @@ function animate() {
         const sun = {
             y: centerY,
             draw: () => {
-                // Мягкая пульсация светила
-                const bounce = Math.sin(Date.now() * 0.003) * 0.04;
-                const baseSize = 25 * screenScale;
-                const size = baseSize * (1.0 + bounce);
-                
-                // 1. Внешнее градиентное свечение (корона)
-                const glowGrad = ctx.createRadialGradient(
-                    centerX, centerY, size * 0.1,
-                    centerX, centerY, size * 3.0
-                );
-                glowGrad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
-                glowGrad.addColorStop(0.2, 'rgba(255, 200, 0, 0.7)');
-                glowGrad.addColorStop(0.45, 'rgba(255, 70, 0, 0.35)');
-                glowGrad.addColorStop(0.7, 'rgba(255, 0, 0, 0.08)');
-                glowGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
-                
-                ctx.save();
-                ctx.globalCompositeOperation = 'screen';
-                ctx.fillStyle = glowGrad;
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, size * 3.0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-                
-                // 2. Плотное горячее ядро Солнца
-                const coreGrad = ctx.createRadialGradient(
-                    centerX, centerY, 0,
-                    centerX, centerY, size
-                );
-                coreGrad.addColorStop(0, '#ffffff');
-                coreGrad.addColorStop(0.4, '#ffe57f');
-                coreGrad.addColorStop(1.0, '#ff8f00');
-                
-                ctx.save();
-                ctx.shadowBlur = 20 * screenScale;
-                ctx.shadowColor = '#ff4500';
-                ctx.fillStyle = coreGrad;
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
+                if (isDoubleStar) {
+                    const orbitR = 20 * screenScale;
+                    const rotSpeed = 0.002;
+                    const angle1 = Date.now() * rotSpeed;
+                    const angle2 = angle1 + Math.PI;
+                    
+                    const starsData = [
+                        {
+                            x: centerX + Math.cos(angle1) * orbitR,
+                            y: centerY + Math.sin(angle1) * orbitR * systemTilt,
+                            pulseOffset: 0
+                        },
+                        {
+                            x: centerX + Math.cos(angle2) * orbitR,
+                            y: centerY + Math.sin(angle2) * orbitR * systemTilt,
+                            pulseOffset: Math.PI
+                        }
+                    ];
+                    
+                    starsData.forEach(s => {
+                        const bounce = Math.sin(Date.now() * 0.004 + s.pulseOffset) * 0.03;
+                        const baseSize = 13 * screenScale;
+                        const size = baseSize * (1.0 + bounce);
+                        
+                        const glowGrad = ctx.createRadialGradient(
+                            s.x, s.y, size * 0.1,
+                            s.x, s.y, size * 2.8
+                        );
+                        glowGrad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+                        glowGrad.addColorStop(0.25, 'rgba(0, 220, 255, 0.45)');
+                        glowGrad.addColorStop(0.6, 'rgba(0, 100, 255, 0.12)');
+                        glowGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+                        
+                        ctx.save();
+                        ctx.globalCompositeOperation = 'screen';
+                        ctx.fillStyle = glowGrad;
+                        ctx.beginPath();
+                        ctx.arc(s.x, s.y, size * 2.8, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                        
+                        const coreGrad = ctx.createRadialGradient(
+                            s.x, s.y, 0,
+                            s.x, s.y, size
+                        );
+                        coreGrad.addColorStop(0, '#ffffff');
+                        coreGrad.addColorStop(0.5, '#e0f7fa');
+                        coreGrad.addColorStop(1.0, '#80deea');
+                        
+                        ctx.save();
+                        ctx.shadowBlur = 15 * screenScale;
+                        ctx.shadowColor = '#00d2ff';
+                        ctx.fillStyle = coreGrad;
+                        ctx.beginPath();
+                        ctx.arc(s.x, s.y, size, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    });
+                } else {
+                    const bounce = Math.sin(Date.now() * 0.003) * 0.04;
+                    const baseSize = 25 * screenScale;
+                    const size = baseSize * (1.0 + bounce);
+                    
+                    const glowGrad = ctx.createRadialGradient(
+                        centerX, centerY, size * 0.1,
+                        centerX, centerY, size * 3.0
+                    );
+                    glowGrad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+                    glowGrad.addColorStop(0.2, 'rgba(255, 200, 0, 0.7)');
+                    glowGrad.addColorStop(0.45, 'rgba(255, 70, 0, 0.35)');
+                    glowGrad.addColorStop(0.7, 'rgba(255, 0, 0, 0.08)');
+                    glowGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+                    
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'screen';
+                    ctx.fillStyle = glowGrad;
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, size * 3.0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                    
+                    const time = Date.now() * 0.001;
+                    while (solarProminences.length < 4) {
+                        solarProminences.push({
+                            angle: Math.random() * Math.PI * 2,
+                            maxHeight: size * (0.3 + Math.random() * 0.25),
+                            loopWidth: 0.08 + Math.random() * 0.12,
+                            life: 1.0,
+                            decay: 0.001 + Math.random() * 0.002
+                        });
+                    }
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'screen';
+                    ctx.lineWidth = 2.2 * screenScale;
+                    ctx.shadowBlur = 10 * screenScale;
+                    ctx.shadowColor = '#ff4500';
+                    for (let i = solarProminences.length - 1; i >= 0; i--) {
+                        const p = solarProminences[i];
+                        p.life -= p.decay;
+                        if (p.life <= 0) {
+                            solarProminences.splice(i, 1);
+                            continue;
+                        }
+                        p.angle += (Math.random() - 0.5) * 0.004;
+                        let alpha = 1.0;
+                        if (p.life > 0.8) {
+                            alpha = (1.0 - p.life) / 0.2;
+                        } else if (p.life < 0.3) {
+                            alpha = p.life / 0.3;
+                        }
+                        ctx.strokeStyle = `rgba(255, 69, 0, ${alpha * 0.45})`;
+                        const p1x = centerX + Math.cos(p.angle - p.loopWidth) * size;
+                        const p1y = centerY + Math.sin(p.angle - p.loopWidth) * size;
+                        const p2x = centerX + Math.cos(p.angle + p.loopWidth) * size;
+                        const p2y = centerY + Math.sin(p.angle + p.loopWidth) * size;
+                        const pulse = 1.0 + Math.sin(time * 1.2 + i) * 0.15;
+                        const h = p.maxHeight * Math.sin(p.life * Math.PI) * pulse;
+                        const ctrlX = centerX + Math.cos(p.angle) * (size + h);
+                        const ctrlY = centerY + Math.sin(p.angle) * (size + h);
+                        ctx.beginPath();
+                        ctx.moveTo(p1x, p1y);
+                        ctx.quadraticCurveTo(ctrlX, ctrlY, p2x, p2y);
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                    
+                    const coreGrad = ctx.createRadialGradient(
+                        centerX, centerY, 0,
+                        centerX, centerY, size
+                    );
+                    coreGrad.addColorStop(0, '#ffffff');
+                    coreGrad.addColorStop(0.4, '#ffe57f');
+                    coreGrad.addColorStop(1.0, '#ff8f00');
+                    
+                    ctx.save();
+                    ctx.shadowBlur = 20 * screenScale;
+                    ctx.shadowColor = '#ff4500';
+                    ctx.fillStyle = coreGrad;
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'screen';
+                    for (let i = 0; i < 4; i++) {
+                        const flareAngle = (i * Math.PI * 2) / 4 - time * 0.05;
+                        const flareDist = size * (0.3 + Math.sin(time * 0.8 + i) * 0.2);
+                        const fx = centerX + Math.cos(flareAngle) * flareDist;
+                        const fy = centerY + Math.sin(flareAngle) * flareDist;
+                        const fSize = size * (0.15 + Math.sin(time * 2.3 + i) * 0.08);
+                        if (fSize > 0) {
+                            const flareGrad = ctx.createRadialGradient(fx, fy, 0, fx, fy, fSize);
+                            flareGrad.addColorStop(0, '#ffffff');
+                            flareGrad.addColorStop(0.4, 'rgba(255, 230, 0, 0.8)');
+                            flareGrad.addColorStop(1, 'rgba(255, 69, 0, 0)');
+                            ctx.fillStyle = flareGrad;
+                            ctx.beginPath();
+                            ctx.arc(fx, fy, fSize, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+                    ctx.restore();
+                }
             }
         };
 
         // 4. Объединяем их в единую очередь рендеринга для Z-сортировки по глубине (координате Y)
-        const renderQueue = [sun, ...asteroids, ...planets, ...comets];
+        const renderQueue = [sun, ...asteroids, ...planets, ...comets, ...spaceships];
         // Сортируем: объекты с меньшим Y (на заднем плане) рисуются первыми
         renderQueue.sort((a, b) => a.y - b.y);
         
