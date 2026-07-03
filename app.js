@@ -1291,12 +1291,60 @@ function animate() {
             }
         }
         
-        // 3. Объединяем их в единую очередь рендеринга для Z-сортировки по глубине (координате Y)
-        const renderQueue = [...asteroids, ...planets, ...comets];
+        // 3. Создаем объект центрального светила (Солнца) для Z-сортировки
+        const sun = {
+            y: centerY,
+            draw: () => {
+                // Мягкая пульсация светила
+                const bounce = Math.sin(Date.now() * 0.003) * 0.04;
+                const baseSize = 25 * screenScale;
+                const size = baseSize * (1.0 + bounce);
+                
+                // 1. Внешнее градиентное свечение (корона)
+                const glowGrad = ctx.createRadialGradient(
+                    centerX, centerY, size * 0.1,
+                    centerX, centerY, size * 3.0
+                );
+                glowGrad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+                glowGrad.addColorStop(0.2, 'rgba(255, 200, 0, 0.7)');
+                glowGrad.addColorStop(0.45, 'rgba(255, 70, 0, 0.35)');
+                glowGrad.addColorStop(0.7, 'rgba(255, 0, 0, 0.08)');
+                glowGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+                
+                ctx.save();
+                ctx.globalCompositeOperation = 'screen';
+                ctx.fillStyle = glowGrad;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, size * 3.0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                
+                // 2. Плотное горячее ядро Солнца
+                const coreGrad = ctx.createRadialGradient(
+                    centerX, centerY, 0,
+                    centerX, centerY, size
+                );
+                coreGrad.addColorStop(0, '#ffffff');
+                coreGrad.addColorStop(0.4, '#ffe57f');
+                coreGrad.addColorStop(1.0, '#ff8f00');
+                
+                ctx.save();
+                ctx.shadowBlur = 20 * screenScale;
+                ctx.shadowColor = '#ff4500';
+                ctx.fillStyle = coreGrad;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        };
+
+        // 4. Объединяем их в единую очередь рендеринга для Z-сортировки по глубине (координате Y)
+        const renderQueue = [sun, ...asteroids, ...planets, ...comets];
         // Сортируем: объекты с меньшим Y (на заднем плане) рисуются первыми
         renderQueue.sort((a, b) => a.y - b.y);
         
-        // 4. Отрисовываем отсортированную очередь (комета пролетает сквозь планеты на разной высоте!)
+        // 5. Отрисовываем отсортированную очередь (планеты красиво огибают Солнце спереди и сзади!)
         renderQueue.forEach(obj => {
             obj.draw();
         });
