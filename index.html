@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Космическая эволюция: Протопланетное облако</title>
+    <meta name="description" content="Интерактивная анимация на Canvas: сожмите протопланетное облако и вызовите космический взрыв, создающий звезды и планеты!">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Google Fonts для космической типографики -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;900&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Canvas для отрисовки космоса -->
+    <canvas id="spaceCanvas" aria-label="Интерактивная космическая симуляция"></canvas>
+
+    <!-- Overlay с интерфейсом запуска -->
+    <div id="uiOverlay" class="ui-overlay">
+        <div class="launch-container" id="launchButton" role="button" aria-label="Запустить коллапс облака и создать звездную систему" tabindex="0">
+            <!-- Оранжевая стрелка, указывающая на облако в центре -->
+            <svg class="arrow-svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 3V19M12 19L5 12M12 19L19 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h1 class="launch-text">LAUNCH!</h1>
+        </div>
+    </div>
+
+    <!-- Кнопка перезапуска после взрыва -->
+    <button id="resetButton" class="reset-button hidden" aria-label="Сбросить симуляцию">
+        <svg class="reset-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l.73-2.19" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Recreate
+    </button>
+
+    <!-- Всплывающая карточка визитки -->
+    <div id="cardOverlay" class="card-overlay hidden" role="dialog" aria-modal="true" aria-label="Карточка контакта Антона">
+        <div class="card-content">
+            <button id="closeCardButton" class="close-card-button" aria-label="Закрыть карточку">&times;</button>
+            <div class="card-body">
+                <img src="avatar.jpg" alt="Аватар Антона" class="card-avatar">
+                <div class="card-info">
+                    <h2 class="card-name">Anton</h2>
+                    <p class="card-subtitle">developer</p>
+                    <div class="card-details">
+                        <div class="card-detail-item">
+                            <span class="card-label">Age:</span>
+                            <span class="card-value" id="dynamicAge">—</span>
+                        </div>
+                        <div class="card-detail-item">
+                            <span class="card-label">Email:</span>
+                            <span class="card-value"><a href="mailto:en@cudjo.space" class="card-link">en@cudjo.space</a></span>
+                        </div>
+                        <div class="card-detail-item">
+                            <span class="card-label">Telegram:</span>
+                            <span class="card-value"><a href="https://t.me/cudjo" target="_blank" rel="noopener noreferrer" class="card-link">@cudjo</a></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,413 @@
+/* Сброс стилей и базовая настройка */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: #000000;
+    color: #ffffff;
+    font-family: 'Outfit', sans-serif;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Canvas на весь экран */
+#spaceCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    display: block;
+}
+
+/* Слой интерфейса поверх Canvas */
+.ui-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none; /* Пропускаем клики сквозь оверлей, кроме интерактивных элементов */
+    transition: opacity 1.5s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.ui-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Контейнер кнопки запуска */
+.launch-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    pointer-events: auto; /* Возвращаем кликабельность кнопке */
+    transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    padding: 30px;
+    border-radius: 20px;
+}
+
+.launch-container:hover {
+    transform: scale(1.08);
+}
+
+/* Оранжевая анимированная стрелка */
+.arrow-svg {
+    width: 70px;
+    height: 70px;
+    color: #ff5e00;
+    margin-bottom: 15px;
+    animation: arrowBounce 2s ease-in-out infinite, arrowColorFlow 3s linear infinite;
+    filter: drop-shadow(0 0 10px rgba(255, 94, 0, 0.6));
+    transition: filter 0.3s ease;
+}
+
+.launch-container:hover .arrow-svg {
+    filter: drop-shadow(0 0 25px rgba(255, 140, 0, 1)) drop-shadow(0 0 50px rgba(255, 94, 0, 0.6));
+}
+
+/* Текст LAUNCH! */
+.launch-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 3.5rem;
+    font-weight: 900;
+    letter-spacing: 0.3em;
+    padding-left: 0.3em; /* Компенсация отступа букв справа */
+    text-transform: uppercase;
+    background: linear-gradient(45deg, #ff3700, #ff7700, #ffaa00, #ff7700, #ff3700);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: textGradient 4s linear infinite;
+    filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));
+    transition: filter 0.3s ease;
+}
+
+.launch-container:hover .launch-text {
+    filter: drop-shadow(0 0 15px rgba(255, 119, 0, 0.6));
+}
+
+/* Кнопка сброса (Recreate) */
+.reset-button {
+    position: fixed;
+    bottom: 40px;
+    right: 40px;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 28px;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50px;
+    cursor: pointer;
+    outline: none;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.reset-button.hidden {
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+}
+
+.reset-button:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    box-shadow: 0 8px 32px 0 rgba(255, 119, 0, 0.15), 
+                inset 0 0 15px rgba(255, 255, 255, 0.05);
+    transform: scale(1.03);
+}
+
+.reset-button:active {
+    transform: scale(0.97);
+}
+
+.reset-icon {
+    transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.reset-button:hover .reset-icon {
+    transform: rotate(-180deg);
+}
+
+/* Анимации */
+
+/* Покачивание стрелки вверх-вниз */
+@keyframes arrowBounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-12px);
+    }
+}
+
+/* Перелив цвета стрелки */
+@keyframes arrowColorFlow {
+    0% {
+        color: #ff5e00;
+        filter: drop-shadow(0 0 8px rgba(255, 94, 0, 0.6));
+    }
+    33% {
+        color: #ffaa00;
+        filter: drop-shadow(0 0 14px rgba(255, 170, 0, 0.8));
+    }
+    66% {
+        color: #ff3c00;
+        filter: drop-shadow(0 0 10px rgba(255, 60, 0, 0.7));
+    }
+    100% {
+        color: #ff5e00;
+        filter: drop-shadow(0 0 8px rgba(255, 94, 0, 0.6));
+    }
+}
+
+/* Бегущий градиент на тексте LAUNCH! */
+@keyframes textGradient {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* Медиа-запросы для адаптивности */
+@media (max-width: 768px) {
+    .launch-text {
+        font-size: 2.3rem;
+        letter-spacing: 0.2em;
+        padding-left: 0.2em;
+    }
+    
+    .arrow-svg {
+        width: 55px;
+        height: 55px;
+    }
+    
+    .reset-button {
+        bottom: 25px;
+        right: 25px;
+        padding: 12px 22px;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .launch-text {
+        font-size: 1.8rem;
+        letter-spacing: 0.15em;
+        padding-left: 0.15em;
+    }
+    
+    .arrow-svg {
+        width: 45px;
+        height: 45px;
+        margin-bottom: 10px;
+    }
+}
+
+/* Всплывающая карточка визитки */
+.card-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 1;
+    transition: opacity 0.4s ease;
+}
+
+.card-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.card-content {
+    background: rgba(15, 15, 23, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7), 
+                inset 0 0 24px rgba(255, 255, 255, 0.03),
+                0 0 40px rgba(255, 94, 0, 0.05);
+    border-radius: 28px;
+    padding: 35px 30px;
+    width: 90%;
+    max-width: 440px;
+    position: relative;
+    transform: scale(1);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: cardSpawn 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-overlay.hidden .card-content {
+    transform: scale(0.92) translateY(10px);
+}
+
+.close-card-button {
+    position: absolute;
+    top: 20px;
+    right: 22px;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 2rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.25s, transform 0.25s;
+    outline: none;
+}
+
+.close-card-button:hover {
+    color: #ff7700;
+    transform: rotate(90deg);
+}
+
+.card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 22px;
+}
+
+.card-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 24px; /* Мягкие скругленные углы под пиксель-арт */
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 
+                0 0 25px rgba(255, 94, 0, 0.25);
+    transition: transform 0.5s ease;
+}
+
+.card-avatar:hover {
+    transform: rotate(3deg) scale(1.05);
+}
+
+.card-info {
+    width: 100%;
+}
+
+.card-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    color: #ffffff;
+    margin-bottom: 4px;
+}
+
+.card-subtitle {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #ff7700;
+    margin-bottom: 25px;
+    filter: drop-shadow(0 0 5px rgba(255, 119, 0, 0.2));
+}
+
+.card-details {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 12px;
+}
+
+.card-detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+    font-size: 0.95rem;
+}
+
+.card-detail-item:last-child {
+    border-bottom: none;
+}
+
+.card-label {
+    color: rgba(255, 255, 255, 0.45);
+    font-weight: 400;
+}
+
+.card-value {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.card-link {
+    color: #00aaff;
+    text-decoration: none;
+    transition: color 0.25s, text-shadow 0.25s;
+}
+
+.card-link:hover {
+    color: #ffaa00;
+    text-shadow: 0 0 8px rgba(255, 170, 0, 0.4);
+}
+
+@keyframes cardSpawn {
+    from {
+        opacity: 0;
+        transform: scale(0.92) translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* Настройки для мобильных */
+@media (max-width: 480px) {
+    .card-content {
+        padding: 30px 20px;
+    }
+    .card-avatar {
+        width: 100px;
+        height: 100px;
+    }
+    .card-name {
+        font-size: 1.5rem;
+    }
+}
