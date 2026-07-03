@@ -377,6 +377,7 @@ class Planet {
         }
         this.hasAntonMark = false;
         this.hasIchiMark = false;
+        this.hasMysteryMark = false;
     }
 
     keepInBounds() {
@@ -498,7 +499,7 @@ class Planet {
         }
 
         // 7. Отрисовка интерактивного знака визитки над планетой (в форме выноски/speech bubble)
-        const hasMark = this.hasAntonMark || this.hasIchiMark;
+        const hasMark = this.hasAntonMark || this.hasIchiMark || this.hasMysteryMark;
         if (hasMark && currentState === STATE_SPACE) {
             const bounce = Math.sin(Date.now() * 0.004) * 4;
             const qx = this.x;
@@ -509,9 +510,25 @@ class Planet {
             const r = 6 * screenScale; // Скругление углов
             const pointerHeight = 6 * screenScale;
             
-            // Цвет неоновой рамки (зеленый для Антона, желтый для Ichi)
-            const glowColor = this.hasAntonMark ? '#00ff66' : '#ffff00';
-            const char = this.hasAntonMark ? '!' : '?'; // "!" для Антона, "?" для Ichi
+            // Цвет и символы:
+            // Антон: зеленый (#00ff66) и "!"
+            // Ichi: желтый (#ffff00) и "?"
+            // Mystery: красный (#ff3333) и "!?"
+            let glowColor = '#ff3333';
+            let char = '!?';
+            if (this.hasAntonMark) {
+                glowColor = '#00ff66';
+                char = '!';
+            } else if (this.hasIchiMark) {
+                glowColor = '#ffff00';
+                char = '?';
+            } else if (this.hasMysteryMark) {
+                glowColor = '#ff3333';
+                char = '!?';
+            }
+            
+            // Расширяем выноску по ширине для "!?"
+            const finalW = char.length > 1 ? w * 1.35 : w;
             
             ctx.save();
             // Свечение неоновой выноски
@@ -523,29 +540,30 @@ class Planet {
             
             ctx.beginPath();
             // Рисуем скругленный прямоугольник выноски
-            ctx.moveTo(qx - w/2 + r, qy - h/2);
-            ctx.lineTo(qx + w/2 - r, qy - h/2);
-            ctx.quadraticCurveTo(qx + w/2, qy - h/2, qx + w/2, qy - h/2 + r);
-            ctx.lineTo(qx + w/2, qy + h/2 - r);
-            ctx.quadraticCurveTo(qx + w/2, qy + h/2, qx + w/2 - r, qy + h/2);
+            ctx.moveTo(qx - finalW/2 + r, qy - h/2);
+            ctx.lineTo(qx + finalW/2 - r, qy - h/2);
+            ctx.quadraticCurveTo(qx + finalW/2, qy - h/2, qx + finalW/2, qy - h/2 + r);
+            ctx.lineTo(qx + finalW/2, qy + h/2 - r);
+            ctx.quadraticCurveTo(qx + finalW/2, qy + h/2, qx + finalW/2 - r, qy + h/2);
             
             // Маленький указатель (стрелочка вниз на планету)
             ctx.lineTo(qx + (5 * screenScale), qy + h/2);
             ctx.lineTo(qx, qy + h/2 + pointerHeight);
             ctx.lineTo(qx - (5 * screenScale), qy + h/2);
             
-            ctx.lineTo(qx - w/2 + r, qy + h/2);
-            ctx.quadraticCurveTo(qx - w/2, qy + h/2, qx - w/2, qy + h/2 - r);
-            ctx.lineTo(qx - w/2, qy - h/2 + r);
-            ctx.quadraticCurveTo(qx - w/2, qy - h/2, qx - w/2 + r, qy - h/2);
+            ctx.lineTo(qx - finalW/2 + r, qy + h/2);
+            ctx.quadraticCurveTo(qx - finalW/2, qy + h/2, qx - finalW/2, qy + h/2 - r);
+            ctx.lineTo(qx - finalW/2, qy - h/2 + r);
+            ctx.quadraticCurveTo(qx - finalW/2, qy - h/2, qx - finalW/2 + r, qy - h/2);
             
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
             
-            // Текст символа по центру выноски
+            // Текст символа по центру выноски (шрифт чуть компактнее для двух символов)
             ctx.fillStyle = '#ffffff';
-            const fontSize = Math.round(14 * screenScale);
+            const baseFontSize = char.length > 1 ? 12 : 14;
+            const fontSize = Math.round(baseFontSize * screenScale);
             ctx.font = `bold ${fontSize}px "Orbitron", sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -882,15 +900,19 @@ function triggerExplosion() {
     for (let i = 0; i < planetCount; i++) {
         planets.push(new Planet());
     }
-    // Назначаем двум разным планетам маркеры визиток Антона и Ichi
-    if (planets.length >= 2) {
+    // Назначаем трем разным планетам маркеры визиток Антона, Ichi и Mystery
+    if (planets.length >= 3) {
         const indices = [];
-        while (indices.length < 2) {
+        while (indices.length < 3) {
             const idx = Math.floor(Math.random() * planets.length);
             if (!indices.includes(idx)) indices.push(idx);
         }
         planets[indices[0]].hasAntonMark = true;
         planets[indices[1]].hasIchiMark = true;
+        planets[indices[2]].hasMysteryMark = true;
+    } else if (planets.length === 2) {
+        planets[0].hasAntonMark = true;
+        planets[1].hasIchiMark = true;
     } else if (planets.length === 1) {
         planets[0].hasAntonMark = true;
     }
@@ -1002,9 +1024,9 @@ window.addEventListener('click', (e) => {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
-    // Ищем, по какой планете кликнули (Антона или Ichi)
+    // Ищем, по какой планете кликнули (Антона, Ichi или Mystery)
     const clickedPlanet = planets.find(p => {
-        if (!p.hasAntonMark && !p.hasIchiMark) return false;
+        if (!p.hasAntonMark && !p.hasIchiMark && !p.hasMysteryMark) return false;
         
         const scale = 1.0 + 0.22 * Math.sin(p.angle);
         const radius = p.currentSize * scale;
@@ -1022,20 +1044,35 @@ window.addEventListener('click', (e) => {
     if (clickedPlanet) {
         cardOpeningTime = Date.now(); // Фиксируем время открытия
         
+        // Восстанавливаем отображение скрытых элементов карточки
+        cardSubtitle.style.display = 'block';
+        const ageRow = dynamicAge.closest('.card-detail-item');
+        if (ageRow) ageRow.style.display = 'flex';
+        emailRow.style.display = 'flex';
+        tgRow.style.display = 'flex';
+        cardName.classList.remove('long-name');
+        
         if (clickedPlanet.hasAntonMark) {
             // Данные Антона
             cardAvatar.src = 'avatar.jpg';
             cardName.textContent = 'Anton';
             cardSubtitle.textContent = 'developer';
             dynamicAge.textContent = calculateAge();
-            emailRow.style.display = 'flex';
-            tgRow.style.display = 'flex';
-        } else {
+        } else if (clickedPlanet.hasIchiMark) {
             // Данные Ichi
             cardAvatar.src = 'ichi.png';
             cardName.textContent = 'Ichi';
             cardSubtitle.textContent = 'happy dog';
             dynamicAge.textContent = calculateIchiAge();
+            emailRow.style.display = 'none';
+            tgRow.style.display = 'none';
+        } else if (clickedPlanet.hasMysteryMark) {
+            // Данные загадочного персонажа
+            cardAvatar.src = 'mystery.png';
+            cardName.textContent = "Here could be you, but you don't write to me";
+            cardName.classList.add('long-name');
+            cardSubtitle.style.display = 'none';
+            if (ageRow) ageRow.style.display = 'none';
             emailRow.style.display = 'none';
             tgRow.style.display = 'none';
         }
@@ -1056,7 +1093,7 @@ window.addEventListener('mousemove', (e) => {
     const mouseY = e.clientY - rect.top;
     
     const isHovered = planets.some(p => {
-        if (!p.hasAntonMark && !p.hasIchiMark) return false;
+        if (!p.hasAntonMark && !p.hasIchiMark && !p.hasMysteryMark) return false;
         
         const scale = 1.0 + 0.22 * Math.sin(p.angle);
         const radius = p.currentSize * scale;

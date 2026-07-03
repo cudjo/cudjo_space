@@ -335,6 +335,13 @@ body {
     margin-bottom: 4px;
 }
 
+.card-name.long-name {
+    font-size: 1.15rem;
+    line-height: 1.4;
+    letter-spacing: 0.02em;
+    margin-bottom: 8px;
+}
+
 .card-subtitle {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.85rem;
