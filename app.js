@@ -44,7 +44,7 @@ let maxRadius = (width < height) ? (width * 0.48) : (Math.min(width, height) * 0
 let screenScale = Math.min(1.0, Math.max(0.82, width / 1300)); // Глобальный масштаб увеличен до 0.82 для крупных планет на мобильных
 let systemTilt = width < height ? 0.82 : 0.65; // Угол наклона системы: раскрываем орбиты по вертикали на смартфонах
 
-// Настройка Retina-дисплеев
+    // Настройка Retina-дисплеев
 function resizeCanvas() {
     width = window.innerWidth;
     height = window.innerHeight;
@@ -58,11 +58,6 @@ function resizeCanvas() {
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     ctx.scale(dpr, dpr);
-    
-    // Если мы уже в финальном состоянии, перегенерируем границы для дрейфующих объектов
-    if (currentState === STATE_SPACE) {
-        planets.forEach(p => p.keepInBounds());
-    }
 }
 
 window.addEventListener('resize', resizeCanvas);
@@ -75,9 +70,9 @@ let asteroids = [];
 let comets = [];
 let spaceships = [];
 let solarProminences = [];
+let activeNoteNodes = [];
 
 let currentTimestamp = Date.now();
-const cloudGroups = Array.from({ length: 5 }, () => []);
 
 let cardOpeningTime = 0; // Таймер для предотвращения мгновенного закрытия карточки (ghost clicks)
 
@@ -390,10 +385,6 @@ class Planet {
         this.stationRotSpeed = (Math.random() * 0.01 + 0.005) * (Math.random() > 0.5 ? 1 : -1);
     }
 
-    keepInBounds() {
-        // Метод пуст, так как планеты привязаны к эллиптическим орбитам
-    }
-
     update() {
         // Динамический пересчет размера планет и колец при ресайзе
         this.size = this.baseSize * screenScale;
@@ -457,6 +448,7 @@ class Planet {
         if (radius <= 0.2) return;
 
         ctx.save();
+        ctx.translate(this.x, this.y);
         
         if (this.isSpaceStation) {
             this.moons.forEach(moon => {
@@ -485,26 +477,26 @@ class Planet {
                 }
             });
             const grad = ctx.createRadialGradient(
-                this.x - radius * 0.35, this.y - radius * 0.35, radius * 0.1,
-                this.x, this.y, radius
+                -radius * 0.35, -radius * 0.35, radius * 0.1,
+                0, 0, radius
             );
             grad.addColorStop(0, this.color1);
             grad.addColorStop(0.5, this.color2);
             grad.addColorStop(1, '#000000');
             ctx.fillStyle = grad;
             ctx.beginPath();
-            ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
             ctx.fill();
             const shadowGrad = ctx.createRadialGradient(
-                this.x, this.y, radius * 0.6,
-                this.x, this.y, radius
+                0, 0, radius * 0.6,
+                0, 0, radius
             );
             shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
             shadowGrad.addColorStop(0.8, 'rgba(0, 0, 0, 0.45)');
             shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0.95)');
             ctx.fillStyle = shadowGrad;
             ctx.beginPath();
-            ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
             ctx.fill();
             this.moons.forEach(moon => {
                 const cos = Math.cos(moon.angle);
@@ -521,8 +513,8 @@ class Planet {
         const hasMark = this.hasAntonMark || this.hasIchiMark || this.hasMysteryMark;
         if (hasMark && currentState === STATE_SPACE) {
             const bounce = Math.sin(currentTimestamp * 0.004) * 4;
-            const qx = this.x;
-            const qy = this.y - radius - (23 * screenScale) + bounce; // Чуть выше над планетой
+            const qx = 0;
+            const qy = -radius - (23 * screenScale) + bounce; // Чуть выше над планетой
             
             const w = 28 * screenScale;
             const h = 22 * screenScale;
@@ -530,9 +522,6 @@ class Planet {
             const pointerHeight = 6 * screenScale;
             
             // Цвет и символы:
-            // Антон: зеленый (#00ff66) и "!"
-            // Ichi: желтый (#ffff00) и "?"
-            // Mystery: красный (#ff3333) и "!?"
             let glowColor = '#ff3333';
             let char = '!?';
             if (this.hasAntonMark) {
@@ -546,11 +535,9 @@ class Planet {
                 char = '!?';
             }
             
-            // Расширяем выноску по ширине для "!?"
             const finalW = char.length > 1 ? w * 1.35 : w;
             
             ctx.save();
-            // Свечение неоновой выноски
             ctx.shadowBlur = 12 * screenScale;
             ctx.shadowColor = glowColor;
             ctx.fillStyle = 'rgba(15, 15, 23, 0.95)';
@@ -558,14 +545,12 @@ class Planet {
             ctx.lineWidth = 1.8 * screenScale;
             
             ctx.beginPath();
-            // Рисуем скругленный прямоугольник выноски
             ctx.moveTo(qx - finalW/2 + r, qy - h/2);
             ctx.lineTo(qx + finalW/2 - r, qy - h/2);
             ctx.quadraticCurveTo(qx + finalW/2, qy - h/2, qx + finalW/2, qy - h/2 + r);
             ctx.lineTo(qx + finalW/2, qy + h/2 - r);
             ctx.quadraticCurveTo(qx + finalW/2, qy + h/2, qx + finalW/2 - r, qy + h/2);
             
-            // Маленький указатель (стрелочка вниз на планету)
             ctx.lineTo(qx + (5 * screenScale), qy + h/2);
             ctx.lineTo(qx, qy + h/2 + pointerHeight);
             ctx.lineTo(qx - (5 * screenScale), qy + h/2);
@@ -579,7 +564,6 @@ class Planet {
             ctx.fill();
             ctx.stroke();
             
-            // Текст символа по центру выноски (шрифт чуть компактнее для двух символов)
             ctx.fillStyle = '#ffffff';
             const baseFontSize = char.length > 1 ? 12 : 14;
             const fontSize = Math.round(baseFontSize * screenScale);
@@ -597,8 +581,8 @@ class Planet {
         // Проекция 3D орбиты на 2D экран с учетом перспективы
         const scaledOrbit = moon.orbitRadius * scale;
         const scaledSize = moon.baseSize * screenScale * scale;
-        const mx = this.x + Math.cos(moon.angle) * scaledOrbit;
-        const my = this.y + Math.sin(moon.angle) * (scaledOrbit * 0.35); // Сплющенный эллипс орбиты
+        const mx = Math.cos(moon.angle) * scaledOrbit;
+        const my = Math.sin(moon.angle) * (scaledOrbit * 0.35); // Сплющенный эллипс орбиты
         
         ctx.save();
         ctx.fillStyle = moon.color;
@@ -612,7 +596,6 @@ class Planet {
 
     drawRings(isBack, scale) {
         ctx.save();
-        ctx.translate(this.x, this.y);
         ctx.rotate(this.ringTilt);
 
         const scaledWidth = this.ringWidth * scale;
@@ -652,7 +635,6 @@ class Planet {
     drawSpaceStation(scale) {
         const radius = this.currentSize * scale;
         ctx.save();
-        ctx.translate(this.x, this.y);
         ctx.rotate(this.stationAngle);
         
         if (this.stationType === 0) {
@@ -1141,6 +1123,8 @@ function launchCollapse() {
     currentState = STATE_COLLAPSE;
     collapseTimer = 0;
     
+    playSpaceAmbient();
+    
     // Плавно скрываем текстовый интерфейс
     uiOverlay.classList.add('hidden');
     
@@ -1265,6 +1249,8 @@ function resetSimulation() {
     resetButton.classList.add('hidden');
     cardOverlay.classList.add('hidden');
     
+    stopSpaceAmbient();
+    
     // Переводим в IDLE
     currentState = STATE_IDLE;
     
@@ -1300,6 +1286,222 @@ launchButton.addEventListener('keydown', (e) => {
     }
 });
 
+window.addEventListener('click', initAudio, { once: true });
+window.addEventListener('pointerdown', initAudio, { once: true });
+window.addEventListener('touchend', initAudio, { once: true });
+
+let audioCtx = null;
+
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+}
+
+function playSpaceSound(type) {
+    try {
+        initAudio();
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        const now = audioCtx.currentTime;
+        if (type === 'open') {
+            const oscs = [];
+            const gains = [];
+            const filter = audioCtx.createBiquadFilter();
+            const delay = audioCtx.createDelay(1.0);
+            const feedback = audioCtx.createGain();
+            const mainGain = audioCtx.createGain();
+            const freqs = [587.33, 880, 1174.66, 1567.98];
+            const gainsDecay = [0.08, 0.06, 0.04, 0.02];
+            
+            filter.type = 'highpass';
+            filter.frequency.setValueAtTime(400, now);
+            
+            delay.delayTime.setValueAtTime(0.18, now);
+            feedback.gain.setValueAtTime(0.4, now);
+            
+            mainGain.gain.setValueAtTime(1.0, now);
+            
+            freqs.forEach((freq, index) => {
+                const osc = audioCtx.createOscillator();
+                const oscGain = audioCtx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, now);
+                
+                oscGain.gain.setValueAtTime(0, now);
+                oscGain.gain.linearRampToValueAtTime(gainsDecay[index], now + 0.01);
+                oscGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.8 / (index + 1));
+                
+                osc.connect(oscGain);
+                oscGain.connect(filter);
+                
+                osc.start(now);
+                osc.stop(now + 1.2);
+                
+                oscs.push(osc);
+                gains.push(oscGain);
+            });
+            
+            filter.connect(mainGain);
+            filter.connect(delay);
+            delay.connect(feedback);
+            feedback.connect(delay);
+            delay.connect(mainGain);
+            
+            mainGain.connect(audioCtx.destination);
+        } else if (type === 'close') {
+            const osc1 = audioCtx.createOscillator();
+            const osc2 = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+            const delay = audioCtx.createDelay(1.0);
+            const feedback = audioCtx.createGain();
+            
+            osc1.type = 'sine';
+            osc2.type = 'triangle';
+            
+            osc1.frequency.setValueAtTime(600, now);
+            osc1.frequency.exponentialRampToValueAtTime(80, now + 0.4);
+            
+            osc2.frequency.setValueAtTime(603, now);
+            osc2.frequency.exponentialRampToValueAtTime(82, now + 0.4);
+            
+            filter.type = 'lowpass';
+            filter.Q.setValueAtTime(2, now);
+            filter.frequency.setValueAtTime(1200, now);
+            filter.frequency.exponentialRampToValueAtTime(200, now + 0.35);
+            
+            delay.delayTime.setValueAtTime(0.1, now);
+            feedback.gain.setValueAtTime(0.25, now);
+            
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(0.12, now + 0.05);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+            
+            osc1.connect(filter);
+            osc2.connect(filter);
+            
+            filter.connect(gainNode);
+            filter.connect(delay);
+            delay.connect(feedback);
+            feedback.connect(delay);
+            delay.connect(gainNode);
+            
+            gainNode.connect(audioCtx.destination);
+            
+            osc1.start(now);
+            osc2.start(now);
+            osc1.stop(now + 0.5);
+            osc2.stop(now + 0.5);
+        }
+    } catch (err) {
+        console.warn(err);
+    }
+}
+
+let ambientInterval = null;
+let ambientNodes = [];
+
+function stopSpaceAmbient() {
+    if (ambientInterval) {
+        clearInterval(ambientInterval);
+        ambientInterval = null;
+    }
+    ambientNodes.forEach(node => {
+        try {
+            node.disconnect();
+            if (node.stop) {
+                node.stop();
+            }
+        } catch (e) {}
+    });
+    ambientNodes = [];
+    
+    // Останавливаем все активно звучащие или запланированные ноты аккордов
+    activeNoteNodes.forEach(node => {
+        try {
+            node.disconnect();
+            if (node.stop) {
+                node.stop();
+            }
+        } catch (e) {}
+    });
+    activeNoteNodes = [];
+}
+
+function playSpaceAmbient() {
+    try {
+        initAudio();
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        stopSpaceAmbient();
+        const ambientFilter = audioCtx.createBiquadFilter();
+        ambientFilter.type = 'lowpass';
+        ambientFilter.frequency.setValueAtTime(300, audioCtx.currentTime);
+        const mainGain = audioCtx.createGain();
+        mainGain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        ambientFilter.connect(mainGain);
+        mainGain.connect(audioCtx.destination);
+        const drone1 = audioCtx.createOscillator();
+        const drone2 = audioCtx.createOscillator();
+        drone1.type = 'sine';
+        drone1.frequency.setValueAtTime(55, audioCtx.currentTime);
+        drone2.type = 'triangle';
+        drone2.frequency.setValueAtTime(82.41, audioCtx.currentTime);
+        const droneGain = audioCtx.createGain();
+        droneGain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        drone1.connect(droneGain);
+        drone2.connect(droneGain);
+        droneGain.connect(ambientFilter);
+        drone1.start();
+        drone2.start();
+        ambientNodes.push(drone1, drone2, droneGain, ambientFilter, mainGain);
+        const notes = [220, 261.63, 293.66, 329.63, 392, 440];
+        function scheduleNextNote() {
+            if (!audioCtx || audioCtx.state === 'closed') return;
+            const now = audioCtx.currentTime;
+            const baseIndex = Math.floor(Math.random() * (notes.length - 2));
+            const chord = [notes[baseIndex], notes[baseIndex + 1], notes[baseIndex + 2]];
+            chord.forEach((freq, i) => {
+                const timeOffset = i * 0.4;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, now + timeOffset);
+                gain.gain.setValueAtTime(0, now + timeOffset);
+                gain.gain.linearRampToValueAtTime(0.12, now + timeOffset + 1.5);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + timeOffset + 5.0);
+                osc.connect(gain);
+                gain.connect(ambientFilter);
+                osc.start(now + timeOffset);
+                osc.stop(now + timeOffset + 5.1);
+                
+                activeNoteNodes.push(osc, gain);
+                
+                // Чтобы не раздувать массив, удалим их через 6 секунд
+                setTimeout(() => {
+                    const idxOsc = activeNoteNodes.indexOf(osc);
+                    if (idxOsc !== -1) activeNoteNodes.splice(idxOsc, 1);
+                    const idxGain = activeNoteNodes.indexOf(gain);
+                    if (idxGain !== -1) activeNoteNodes.splice(idxGain, 1);
+                }, 6000);
+            });
+        }
+        scheduleNextNote();
+        ambientInterval = setInterval(scheduleNextNote, 4000);
+    } catch (err) {
+        console.warn(err);
+    }
+}
+
 /**
  * Динамический расчет возраста от даты рождения 24.09.1989
  */
@@ -1328,8 +1530,8 @@ function calculateIchiAge() {
     return age;
 }
 
-// Обработка клика по окну (для открытия карточки визитки)
-window.addEventListener('click', (e) => {
+// Обработка клика по canvas (для открытия карточки визитки)
+canvas.addEventListener('pointerup', (e) => {
     if (currentState !== STATE_SPACE) return;
     
     const rect = canvas.getBoundingClientRect();
@@ -1346,11 +1548,18 @@ window.addEventListener('click', (e) => {
         const bounce = Math.sin(currentTimestamp * 0.004) * 4;
         const qy = p.y - radius - (23 * screenScale) + bounce;
         
-        const distToQ = Math.hypot(mouseX - qx, mouseY - qy);
-        const distToPlanet = Math.hypot(mouseX - p.x, mouseY - p.y);
+        const dxQ = mouseX - qx;
+        const dyQ = mouseY - qy;
+        const distToQ2 = dxQ * dxQ + dyQ * dyQ;
+        
+        const dxP = mouseX - p.x;
+        const dyP = mouseY - p.y;
+        const distToPlanet2 = dxP * dxP + dyP * dyP;
         
         const clickScale = Math.min(1.0, Math.max(0.65, width / 1300));
-        return distToQ < 26 * clickScale || distToPlanet < radius + 15 * clickScale;
+        const limitQ = 26 * clickScale;
+        const limitP = radius + 15 * clickScale;
+        return distToQ2 < limitQ * limitQ || distToPlanet2 < limitP * limitP;
     });
     
     if (clickedPlanet) {
@@ -1372,13 +1581,13 @@ window.addEventListener('click', (e) => {
         
         if (clickedPlanet.hasAntonMark) {
             // Данные Антона
-            cardAvatar.src = 'avatar.jpg';
+            cardAvatar.src = preloadedAvatars['avatar.jpg'] ? preloadedAvatars['avatar.jpg'].src : 'avatar.jpg';
             cardName.textContent = 'Anton';
             cardSubtitle.textContent = 'developer';
             dynamicAge.textContent = calculateAge();
         } else if (clickedPlanet.hasIchiMark) {
             // Данные Ichi
-            cardAvatar.src = 'ichi.png';
+            cardAvatar.src = preloadedAvatars['ichi.png'] ? preloadedAvatars['ichi.png'].src : 'ichi.png';
             cardName.textContent = 'Ichi';
             cardSubtitle.textContent = 'happy dog';
             dynamicAge.textContent = calculateIchiAge();
@@ -1386,7 +1595,7 @@ window.addEventListener('click', (e) => {
             tgRow.style.display = 'none';
         } else if (clickedPlanet.hasMysteryMark) {
             // Данные загадочного персонажа
-            cardAvatar.src = 'mystery.png';
+            cardAvatar.src = preloadedAvatars['mystery.png'] ? preloadedAvatars['mystery.png'].src : 'mystery.png';
             cardName.textContent = "Here could be you, but you don't write to me";
             cardName.classList.add('long-name');
             cardSubtitle.style.display = 'none';
@@ -1395,12 +1604,19 @@ window.addEventListener('click', (e) => {
             tgRow.style.display = 'none';
         }
         
+        // Если картинка уже была загружена и находится в кэше, onload может не сработать.
+        // Поэтому принудительно делаем opacity = 1.
+        if (cardAvatar.complete) {
+            cardAvatar.style.opacity = '1';
+        }
+        
         cardOverlay.classList.remove('hidden');
+        playSpaceSound('open');
     }
 });
 
-// Отслеживание наведения мыши для смены курсора на pointer над выносками или самими планетами
-window.addEventListener('mousemove', (e) => {
+// Отслеживание перемещения указателя для смены курсора на pointer над выносками или самими планетами
+canvas.addEventListener('pointermove', (e) => {
     if (currentState !== STATE_SPACE) {
         canvas.style.cursor = 'default';
         return;
@@ -1419,11 +1635,18 @@ window.addEventListener('mousemove', (e) => {
         const bounce = Math.sin(currentTimestamp * 0.004) * 4;
         const qy = p.y - radius - (23 * screenScale) + bounce;
         
-        const distToQ = Math.hypot(mouseX - qx, mouseY - qy);
-        const distToPlanet = Math.hypot(mouseX - p.x, mouseY - p.y);
+        const dxQ = mouseX - qx;
+        const dyQ = mouseY - qy;
+        const distToQ2 = dxQ * dxQ + dyQ * dyQ;
+        
+        const dxP = mouseX - p.x;
+        const dyP = mouseY - p.y;
+        const distToPlanet2 = dxP * dxP + dyP * dyP;
         
         const clickScale = Math.min(1.0, Math.max(0.65, width / 1300));
-        return distToQ < 26 * clickScale || distToPlanet < radius + 15 * clickScale;
+        const limitQ = 26 * clickScale;
+        const limitP = radius + 15 * clickScale;
+        return distToQ2 < limitQ * limitQ || distToPlanet2 < limitP * limitP;
     });
     
     if (isHovered) {
@@ -1436,12 +1659,14 @@ window.addEventListener('mousemove', (e) => {
 // Закрытие карточки по крестику
 closeCardButton.addEventListener('click', () => {
     cardOverlay.classList.add('hidden');
+    playSpaceSound('close');
 });
 
 // Закрытие карточки по клику вне контента (с защитой от мгновенного фантомного клика)
 cardOverlay.addEventListener('click', (e) => {
     if (e.target === cardOverlay && Date.now() - cardOpeningTime > 250) {
         cardOverlay.classList.add('hidden');
+        playSpaceSound('close');
     }
 });
 
@@ -1471,43 +1696,47 @@ function animate() {
     if (particles.length > 0) {
         ctx.globalCompositeOperation = 'screen';
         
-        // Разделяем частицы на фоновое облако (пыль) и осколки взрыва (debris)
+        const activeParticles = [];
         const cloudParticles = [];
         const debrisParticles = [];
         
-        for (let i = particles.length - 1; i >= 0; i--) {
+        for (let i = 0; i < particles.length; i++) {
             const p = particles[i];
             p.update();
             
             if (p.isDebris) {
-                if (p.alpha <= 0) {
-                    particles.splice(i, 1);
-                } else {
+                if (p.alpha > 0) {
+                    activeParticles.push(p);
                     debrisParticles.push(p);
                 }
             } else {
+                activeParticles.push(p);
                 cloudParticles.push(p);
             }
         }
+        particles = activeParticles;
         
-        // 1. Отрисовка облака пакетами (Batch Rendering) по 5 цветовым группам
-        // Это снижает количество вызовов fill() с 2500 до 5, убирая любые лаги
+        // 1. Отрисовка облака пакетами (Batch Rendering) с группировкой по цвету,
+        // округленной альфе и яркости для сохранения индивидуального объема и мерцания.
         if (cloudParticles.length > 0) {
-            cloudGroups.forEach(g => g.length = 0);
-            
+            const groups = {};
             cloudParticles.forEach(p => {
-                cloudGroups[p.colorIndex].push(p);
+                const aKey = Math.round(p.alpha * 6.66) / 6.66;
+                const lKey = Math.round(p.l / 8) * 8;
+                const key = `${p.colorIndex}_${aKey.toFixed(2)}_${lKey}`;
+                
+                if (!groups[key]) {
+                    groups[key] = [];
+                }
+                groups[key].push(p);
             });
             
-            for (let g = 0; g < spaceColors.length; g++) {
-                const group = cloudGroups[g];
-                if (group.length === 0) continue;
+            for (const key in groups) {
+                const group = groups[key];
+                const first = group[0];
+                const template = spaceColors[first.colorIndex];
                 
-                const template = spaceColors[g];
-                const repAlpha = group[0].alpha;
-                const repL = group[0].l;
-                
-                ctx.fillStyle = `hsla(${template.h}, ${template.s}%, ${repL}%, ${repAlpha})`;
+                ctx.fillStyle = `hsla(${template.h}, ${template.s}%, ${first.l}%, ${first.alpha})`;
                 ctx.beginPath();
                 
                 group.forEach(p => {
@@ -1693,26 +1922,23 @@ function animate() {
                     
                     const time = currentTimestamp * 0.001;
                     while (solarProminences.length < 4) {
-                        solarProminences.push({
-                            angle: Math.random() * Math.PI * 2,
-                            maxHeight: size * (0.3 + Math.random() * 0.25),
-                            loopWidth: 0.08 + Math.random() * 0.12,
-                            life: 1.0,
-                            decay: 0.001 + Math.random() * 0.002
-                        });
+                        solarProminences.push({ life: 0 });
                     }
                     ctx.save();
                     ctx.globalCompositeOperation = 'screen';
                     ctx.lineWidth = 2.2 * screenScale;
                     ctx.shadowBlur = 10 * screenScale;
                     ctx.shadowColor = '#ff4500';
-                    for (let i = solarProminences.length - 1; i >= 0; i--) {
+                    for (let i = 0; i < solarProminences.length; i++) {
                         const p = solarProminences[i];
-                        p.life -= p.decay;
                         if (p.life <= 0) {
-                            solarProminences.splice(i, 1);
-                            continue;
+                            p.angle = Math.random() * Math.PI * 2;
+                            p.maxHeight = size * (0.3 + Math.random() * 0.25);
+                            p.loopWidth = 0.08 + Math.random() * 0.12;
+                            p.life = 1.0;
+                            p.decay = 0.001 + Math.random() * 0.002;
                         }
+                        p.life -= p.decay;
                         p.angle += (Math.random() - 0.5) * 0.004;
                         let alpha = 1.0;
                         if (p.life > 0.8) {

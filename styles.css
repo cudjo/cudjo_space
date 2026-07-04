@@ -89,6 +89,7 @@ body {
     background: linear-gradient(45deg, #ff3700, #ff7700, #ffaa00, #ff7700, #ff3700);
     background-size: 200% auto;
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     animation: textGradient 4s linear infinite;
     filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));
@@ -126,6 +127,7 @@ body {
     transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
     opacity: 1;
     transform: translateY(0);
+    will-change: transform, opacity;
 }
 
 .reset-button.hidden {
@@ -251,6 +253,7 @@ body {
     align-items: center;
     opacity: 1;
     transition: opacity 0.4s ease;
+    will-change: opacity;
 }
 
 .card-overlay.hidden {
@@ -274,6 +277,7 @@ body {
     transform: scale(1);
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     animation: cardSpawn 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform, opacity;
 }
 
 .card-overlay.hidden .card-content {
@@ -416,5 +420,19 @@ body {
     }
     .card-name {
         font-size: 1.5rem;
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+    }
+    .card-name.long-name {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 400px) {
+    .card-detail-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        padding-bottom: 10px;
     }
 }
